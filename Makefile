@@ -13,7 +13,7 @@ RELEASE_DIR ?= $(DIST_DIR)/zoal-briefing
 BUILD_TYPE ?= Release
 
 # Local X-Plane plugin installation directory (override for testing on non-standard installs).
-LOCAL_XPLANE_PLUGIN_DIR ?= $(HOME)/X-Plane 12/Resources/plugins/zoal-briefing
+LOCAL_XPLANE_PLUGIN_DIR ?= $(HOME)/X-Plane 12/Resources/plugins/zoal-briefing/mac_x64
 
 PLUGIN_XPL := $(PLUGIN_BUILD_DIR)/zoal-briefing.xpl
 
@@ -115,7 +115,7 @@ release: plugin
 	printf '%s\n' \
 	  'zoal-briefing — voice briefing plugin for X-Plane' '' \
 	  '1. Copy zoal-briefing.xpl into X-Plane 12/Resources/plugins/' '' \
-	  '   Requires: X-Plane 12.4+ SDK (v4.4.0-b5)' > "$(RELEASE_DIR)/README.txt"
+	  'Requires: X-Plane 12.4+ SDK (xpsdk_4.4.0-r2)' > "$(RELEASE_DIR)/README.txt"
 	@echo "Release assembled in $(RELEASE_DIR)"
 
 # --- cleanup -----------------------------------------------------------------

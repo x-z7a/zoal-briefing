@@ -162,6 +162,14 @@ if(ZoalBriefing_BUILD_PLUGIN AND _zb_sdk_present)
             message(STATUS "Linking against XPLM Windows library: ${_zb_xplm_win}")
             target_link_libraries(zoal_briefing PRIVATE "${_zb_xplm_win}")
         endif()
+        # MinGW: statically link gcc and stdc++ runtimes so the .xpl ships standalone.
+        if(MINGW)
+            target_link_options(zoal_briefing PRIVATE
+                -static-libgcc
+                -static-libstdc++
+                -static
+            )
+        endif()
         target_link_libraries(zoal_briefing PRIVATE ws2_32 winmm ole32 uuid)
         target_compile_options(zoal_briefing PRIVATE /WX-)
     else()
@@ -175,6 +183,7 @@ if(ZoalBriefing_BUILD_PLUGIN AND _zb_sdk_present)
         target_link_libraries(zoal_briefing PRIVATE "-lX11" pthread dl m)
     endif()
 
+    # The .xpl name uses a hyphen (zoal-briefing.xpl), matching the zoal-* convention.
     set_target_properties(zoal_briefing PROPERTIES
         OUTPUT_NAME "zoal-briefing"
         PREFIX ""

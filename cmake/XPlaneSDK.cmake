@@ -1,21 +1,21 @@
 # X-Plane SDK — download from official X-Plane GitHub releases.
 # Uses release ZIP archives (no git clone): avoids auth issues in CI.
+# Repo: https://github.com/X-Plane/xpsdk (tag: xpsdk_4.4.0-r2)
 # Mirrors the pattern: sentinel file, version pinning, CMake-native
 # download/extract rather than git operations.
 
-if(NOT DEFINED ZOAL_BRIEFING_XPLANE_SDK OR ZOAL_BRIEFING_XPLANE_SDK STREQUAL "")
-    set(ZOAL_BRIEFING_XPLANE_SDK "${CMAKE_CURRENT_SOURCE_DIR}/sdk")
+if(NOT DEFINED ZoalBriefing_XPLANE_SDK OR ZoalBriefing_XPLANE_SDK STREQUAL "")
+    set(ZoalBriefing_XPLANE_SDK "${CMAKE_CURRENT_SOURCE_DIR}/sdk")
 endif()
 
-get_filename_component(_zb_sdk_dir "${ZOAL_BRIEFING_XPLANE_SDK}" ABSOLUTE)
+get_filename_component(_zb_sdk_dir "${ZoalBriefing_XPLANE_SDK}" ABSOLUTE)
 
 # Version pin — update this when X-Plane releases a new SDK.
-# The tag is v4.4.0-b5 on the X-Plane GitHub repo:
-#   https://github.com/x-plane/X-Plane-SDK/releases/tag/v4.4.0-b5
-set(ZOAL_BRIEFING_SDK_VERSION "4.4.0-b5" CACHE STRING "X-Plane SDK version to download")
+set(ZOAL_BRIEFING_SDK_VERSION "xpsdk_4.4.0-r2" CACHE STRING "X-Plane SDK version to download")
 set(ZOAL_BRIEFING_SDK_URL
-    "https://github.com/x-plane/X-Plane-SDK/archive/refs/tags/v${ZOAL_BRIEFING_SDK_VERSION}.zip"
-    CACHE STRING "SDK download URL (release ZIP from X-Plane GitHub)")
+    "https://github.com/X-Plane/xpsdk/archive/refs/tags/${ZOAL_BRIEFING_SDK_VERSION}.zip"
+    CACHE STRING "SDK download URL (release ZIP from X-Plane GitHub: X-Plane/xpsdk)"
+)
 
 # Sentinel header that only exists in SDK 4.4.0+ (panel-graphics ImGui helpers)
 set(_zb_sentinel "${_zb_sdk_dir}/XPLM/XPLMPanelGraphics.h")
@@ -49,7 +49,7 @@ else()
     file(ARCHIVE_EXTRACT INPUT "${_zb_zip}" DESTINATION "${_zb_src}")
 
     # Flatten the archive: the zip contains a top-level directory named
-    # X-Plane-SDK-4.4.0-b5/ (from the tag), containing CHeaders/, Libraries/, etc.
+    # xpsdk-${VERSION}/ containing CHeaders/, Libraries/, etc.
     # We need to copy that contents up into sdk/ so the SDK has both the
     # legacy structure (CHeaders/, Libraries/) and the flattened XPLM/.
     file(MAKE_DIRECTORY "${_zb_src}/XPLM" "${_zb_src}/XPWidgets")

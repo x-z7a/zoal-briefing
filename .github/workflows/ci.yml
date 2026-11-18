@@ -1,25 +1,17 @@
-# CI for zoal-briefing — X-Plane voice briefing plugin.
 name: CI
 
+# No paths filter: in this repo every change is a plugin change. The push
+# trigger is on because this repo is the plugin — there is no larger tree whose
+# CI would catch a bad main.
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  CMAKE_BUILD_TYPE: Release
-
 jobs:
-  # =====================================================================
-  # build-test: SDK-free C++ core (all platforms, all three)
-  # =====================================================================
   build-test:
-    name: Core (${{ matrix.os }})
+    name: C++ core (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -29,22 +21,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # `make test` — what the release gate runs. CI must match the
-      # production command so Windows is exercised too (multi-config MSVC
-      # ignores CMAKE_BUILD_TYPE and needs --config).
+      # `make` and not raw cmake, because `make test` is what the release Gate
+      # runs. This job used to drive cmake directly with the right --config/-C
+      # flags while the Makefile had neither, so the Makefile path reached a tag
+      # having never run on Windows — where it configured a multi-config
+      # generator, built Debug, looked for Release, and reported all tests
+      # "Not Run" as a pass. CI must run the command the release runs.
       - name: Install Windows build dependencies
         if: runner.os == 'Windows'
         run: choco install make -y
 
       - name: Test
+        shell: bash
         run: make test
 
-  # =====================================================================
-  # plugin-build: .xpl for every platform. Uses MinGW on Windows so the
-  # single-config generator respects CMAKE_BUILD_TYPE just like the release.
-  # =====================================================================
   plugin-build:
-    name: Plugin (${{ matrix.os }})
+    name: X-Plane plugin (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -54,8 +46,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The release build uses MinGW on Windows. Building MSVC here would
-      # leave the toolchain that actually ships proven only at tag time.
+      # No Go and no Node: packaging archives with `cmake -E tar`, and cmake
+      # is already a hard dependency of the plugin build on all three
+      # platforms. The panel is C++ now, built with the plugin.
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
       - name: Install Windows build dependencies
         if: runner.os == 'Windows'
         run: choco install make mingw -y
@@ -66,17 +65,13 @@ jobs:
         run: |
           "C:\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # The CMakeLists.txt auto-downloads the SDK from GitHub releases,
-      # so no separate download step is needed. This avoids auth failures
-      # that occur when git clone requires credentials for private repos.
       - name: Build plugin
         shell: bash
         run: make plugin
 
       - name: Upload plugin artifact
-        if: runner.os != 'Windows'  # Windows uploads handled separately
         uses: actions/upload-artifact@v4
         with:
-          name: zoal-briefing-${{ matrix.os }}-plugin
+          name: zoal-briefing-${{ matrix.os }}
           path: build-plugin/zoal-briefing.xpl
-
+          retention-days: 7

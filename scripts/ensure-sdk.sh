@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ensure-sdk.sh — Ensures the local X-Plane SDK is up-to-date.
-# Downloads from the official X-Plane GitHub releases (not WordPress CDN):
-#   https://github.com/x-plane/X-Plane-SDK/releases/tag/v4.4.0-b5
+# Downloads from the official X-Plane GitHub releases:
+#   https://github.com/X-Plane/xpsdk/releases/tag/xpsdk_4.4.0-r2
 # Avoids git clone (which can fail with auth issues) by downloading
 # release ZIP archives directly.
 #
@@ -12,8 +12,8 @@
 set -euo pipefail
 
 SDK_DIR="${1:-./sdk}"
-VERSION="4.4.0-b5"
-SDK_URL="https://github.com/x-plane/X-Plane-SDK/archive/refs/tags/v${VERSION}.zip"
+VERSION="xpsdk_4.4.0-r2"
+SDK_URL="https://github.com/X-Plane/xpsdk/archive/refs/tags/${VERSION}.zip"
 
 echo ">>> Checking X-Plane SDK v${VERSION} upstream status..."
 
