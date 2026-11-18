@@ -154,6 +154,9 @@ if(ZoalBriefing_BUILD_PLUGIN AND _zb_sdk_present)
     target_link_libraries(zoal_briefing PRIVATE zoal_briefing_core zoal_briefing_imgui)
 
     # Enable all XPLM API features (matches zoal-atc pattern)
+    # xplane_logger.h writes to X-Plane's Log.txt in the plugin (stderr elsewhere).
+    target_compile_definitions(zoal_briefing PRIVATE ZOAL_BRIEFING_USE_XPLANE_SDK=1)
+
     target_compile_definitions(zoal_briefing PRIVATE
         XPLM200=1 XPLM210=1 XPLM300=1 XPLM301=1
         XPLM400=1 XPLM410=1 XPLM420=1 XPLM430=1 XPLM440=1
