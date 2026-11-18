@@ -8,7 +8,7 @@ set -euo pipefail
 
 SDK_REPO="${1:-https://github.com/X-Plane/xpsdk.git}"
 LOCAL_SDK_DIR="./sdk"
-REMOTE_REF="origin/main"
+REMOTE_REF="origin/master"
 
 echo ">>> Checking X-Plane SDK upstream status for CI compatibility..."
 

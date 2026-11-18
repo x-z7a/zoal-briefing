@@ -6,6 +6,7 @@ build-test/
 *.so
 *.xpl
 *.dll
+build/
 
 # CMake
 CMakeCache.txt

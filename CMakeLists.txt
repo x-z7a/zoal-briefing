@@ -27,7 +27,6 @@ add_library(zoal_briefing_core STATIC
     src/llm_bridge/llm_bridge_router.cpp
     src/cache_builder/metar_file_parser.cpp
     src/cache_builder/grib_file_parser.cpp
-    src/simbrief_trigger/simbrief_trigger.cpp
 )
 
 target_include_directories(zoal_briefing_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
