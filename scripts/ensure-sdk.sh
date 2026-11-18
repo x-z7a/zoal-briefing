@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-SDK_REPO="${1:-https://github.com/LaminarResearch/XPLANE_SDK.git}"
+SDK_REPO="${1:-https://github.com/X-Plane/xpsdk.git}"
 LOCAL_SDK_DIR="./sdk"
 REMOTE_REF="origin/main"
 
