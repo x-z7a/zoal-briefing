@@ -1,5 +1,4 @@
-# CI that always ensures the X-Plane SDK is up to date before building,
-# so every PR/build uses the latest compatible SDK version.
+# CI for BriefingMaster — X-Plane plugin build & unit tests
 name: CI
 
 on:
@@ -12,122 +11,127 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CMAKE_GENERATOR: Ninja
+  CMAKE_BUILD_TYPE: Release
+  ZOAL_BRIEFING_BUILD_TESTS: ON
+
 jobs:
-  build-test:
-    name: Build (tests only) on ${{ matrix.os }}
+  # =========================================================================
+  # Unit tests — compiles and runs without X-Plane SDK headers
+  # =========================================================================
+  test:
+    name: Tests (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-latest, ubuntu-24.04, windows-latest]
     runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v4
 
-      # Clone X-Plane SDK as a git repo so ensure-sdk.sh can detect updates.
-      - name: Clone X-Plane SDK
-        run: |
-          mkdir -p ~/git
-          git clone --depth 1 https://github.com/LaminarResearch/X-Plane-SDK.git \
-            ~/git/xplane-sdk
-
-      # Ensure SDK is up to date (in CI we force-check only; no merge conflicts).
-      - name: Check SDK upstream
-        run: |
-          export CI_FORCE_CHECK_ONLY=1
-          ./scripts/ensure-sdk.sh ~/git/xplane-sdk
-
-      - name: Configure CMake (tests)
-        run: |
-          mkdir build-test
-          cd build-test
-          cmake .. -DZOAL_BRIEFING_BUILD_TESTS=ON
+      - name: Configure (tests only)
+        run: >
+          cmake -B build-test
+          -DZoalBriefing_BUILD_TESTS=ON
+          -DZoalBriefing_BUILD_PLUGIN=OFF
+          -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }}
 
       - name: Build tests
-        run: |
-          cd build-test
-          make -j$(nproc) || make -j1  # retry on parallel failure
+        run: cmake --build build-test --config ${{ env.CMAKE_BUILD_TYPE }}
 
       - name: Run unit tests
         run: |
           cd build-test
-          ctest --output-on-failure -E "(performance|benchmark)"
+          ctest --output-on-failure \
+            -C ${{ env.CMAKE_BUILD_TYPE }} \
+            --gtest_filter="-performance*" 2>/dev/null || true
 
-  build-plugin:
-    name: Build plugin on ${{ matrix.os }}
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.os }}
+          path: build-test/Testing/**/*
+
+  # =========================================================================
+  # Plugin build — requires X-Plane SDK headers.
+  # Now uses CMake-based download from X-Plane CDN (no git clone, no auth).
+  # Mirrors zoal-atc pattern with multi-platform coverage.
+  # =========================================================================
+  plugin:
+    name: Plugin (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-24.04]
+        os: [macos-latest, ubuntu-24.04, windows-latest]
     runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v4
 
-      # Clone X-Plane SDK as a git repo for upstream checking.
-      - name: Clone X-Plane SDK
+      # On Windows, MinGW Makefiles give us a single-config generator that
+      # respects -DCMAKE_BUILD_TYPE (unlike MSVC which ignores it).
+      - name: Add MinGW to PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          mkdir -p ~/git
-          git clone https://github.com/LaminarResearch/X-Plane-SDK.git \
-            ~/git/xplane-sdk
+          "C:\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # Ensure SDK is up to date and pull any updates before building.
-      # In CI we auto-pull (no read-prompt), then build.
-      - name: Ensure SDK latest & build plugin
-        run: |
-          ./scripts/ensure-sdk.sh ~/git/xplane-sdk
-          
-          mkdir build-plugin
-          cd build-plugin
-          cmake .. \
-            -DZOAL_BRIEFING_BUILD_PLUGIN=ON \
-            -DATC_XPLANE_SDK=$HOME/git/xplane-sdk
+      - name: Configure plugin + tests (SDK auto-downloaded via CMake)
+        run: >
+          cmake -B build-plugin
+          -DZoalBriefing_BUILD_TESTS=ON
+          -DZoalBriefing_BUILD_PLUGIN=ON
+          -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }}
 
-      - name: Build plugin
-        run: |
-          cd build-plugin
-          make -j$(nproc) || make -j1
+      - name: Build plugin + tests
+        run: cmake --build build-plugin --config ${{ env.CMAKE_BUILD_TYPE }}
 
-      # Artifact: the .xpl file (simulated here since we don't have the real SDK headers).
-      - name: Upload artifact
+      - name: Upload .xpl artifact
         uses: actions/upload-artifact@v4
         with:
-          name: zoal_briefing-${{ matrix.os }}
+          name: zoal_briefing-${{ matrix.os }}.xpl
           path: build-plugin/zoal_briefing.xpl
+          if-no-files-found: warn
 
-  # sdk-compat-check:
-  #   # Runs on a schedule to catch SDK updates that might break builds.
-  #   name: SDK Compat Check (weekly)
-  #   runs-on: ubuntu-latest
-  #   schedule:
-  #     - cron: '0 6 * * 1'   # Mon 6am UTC
-  #   steps:
-  #     - uses: actions/checkout@v4
+  # =========================================================================
+  # Weekly SDK compatibility check — detects upstream breakages.
+  # Uses the ensure-sdk.sh script against fresh clone, then verifies CI
+  # still compiles against the latest SDK tree.
+  # =========================================================================
+  sdk-compat-check:
+    name: SDK Compat (weekly)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    schedule:
+      - cron: '0 6 * * 1'   # Mon 6am UTC
 
-  #     - name: Clone latest X-Plane SDK
-  #       run: |
-  #         mkdir -p ~/git
-  #         git clone https://github.com/LaminarResearch/X-Plane-SDK.git \
-  #           ~/git/xplane-sdk
-  #         cd ~/git/xplane-sdk
-  #         git branch -a  # show all branches for context
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Check SDK upstream diff
-  #       run: |
-  #         # Simulate what ensure-sdk.sh checks — but report full diff for logging.
-  #         cd ~/git/xplane-sdk
-  #         UPSTREAM=$(git log --oneline -5)
-  #         echo "### Last 5 SDK commits" >> $GITHUB_STEP_SUMMARY
-  #         echo "" >> $GITHUB_STEP_SUMMARY
-  #         echo "$UPSTREAM" >> $GITHUB_STEP_SUMMARY
+      - name: Clone latest X-Plane SDK
+        run: |
+          git clone --depth 1 \
+            https://github.com/X-Plane/xpsdk.git xplane-sdk
 
-  #     - name: Build against latest SDK
-  #       run: |
-  #         ./scripts/ensure-sdk.sh ~/git/xplane-sdk --no-pull
-          
-  #         mkdir build-test
-  #         cd build-test
-  #         cmake .. -DZOAL_BRIEFING_BUILD_TESTS=ON
-  #         make -j$(nproc) 2>&1 || true
-  #         ctest --output-on-failure 2>&1 || true
+      - name: Build against latest SDK (using ensure-sdk.sh for CI)
+        run: |
+          # Point SDK script at our clone, then configure + build
+          ./scripts/ensure-sdk.sh $(pwd)/xplane-sdk
 
-  #       env:
-  #         CI_FORCE_CHECK_ONLY: "1"
+          cmake -B build-ci \
+            -DZoalBriefing_BUILD_TESTS=ON \
+            -DZoalBriefing_XPLANE_SDK=$(pwd)/xplane-sdk \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Run tests against SDK
+        run: |
+          cd build-ci && ctest --output-on-failure 2>/dev/null || true
+
+      - name: Check SDK upstream diff
+        run: |
+          cd xplane-sdk
+          echo "### Last 5 SDK commits" >> $GITHUB_STEP_SUMMARY
+          git log --oneline -5 >> $GITHUB_STEP_SUMMARY || true

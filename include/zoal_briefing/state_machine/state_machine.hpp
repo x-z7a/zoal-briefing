@@ -6,7 +6,7 @@
 #include <chrono>
 #include <functional>
 
-namespace zoal_briefing::master::state {
+namespace zoal_briefing::state {
 
 enum class State {
     IDLE,
@@ -47,4 +47,4 @@ private:
     std::function<void()> on_timeout_;
 };
 
-} // namespace zoal_briefing::master::state
+} // namespace zoal_briefing::state

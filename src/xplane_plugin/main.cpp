@@ -6,7 +6,7 @@
 // Placeholder for X-Plane SDK headers (XPLMPlugging.h, XPLMDataAccess.h, etc.)
 // In a real build, these are included via the X-Plane SDK path.
 
-using namespace zoal_briefing::master::state;
+using namespace zoal_briefing::state;
 using namespace zoal_briefing::bridge;
 
 static StateMachine sm;
@@ -60,13 +60,15 @@ int xPluginWeight(const char* pluginId) {
     return 100;
 }
 
-extern "C" XPLMPLUGIN_EXPORT int xPluginDescribe(char* outName, char* outSignature, char* outPayload) {
+#include <cstring>
+extern "C" int xPluginDescribe(char* outName, char* outSignature, char* outPayload) {
     strcpy(outName, "zoal_briefing");
     strcpy(outSignature, "zoal-briefing-v1");
     strcpy(outPayload, "Voice-driven weather/briefing plugin");
     return 0;
 }
 
-extern "C" XPLMPLUGIN_EXPORT int xPluginStart(char* outName, char* outSignature, char* outPayload) {
+#include <cstring>
+extern "C" int xPluginStart(char* outName, char* outSignature, char* outPayload) {
     return xPluginDescribe(outName, outSignature, outPayload);
 }

@@ -1,7 +1,7 @@
 #include "zoal_briefing/state_machine/state_machine.hpp"
 #include <iostream>
 
-namespace zoal_briefing::master::state {
+namespace zoal_briefing::state {
 
 void StateMachine::transition_to(State next) {
     std::lock_guard<std::mutex> lock(mtx_);
@@ -43,4 +43,4 @@ void StateMachine::cancel_timeout() {
     timeout_active_ = false;
 }
 
-} // namespace zoal_briefing::master::state
+} // namespace zoal_briefing::state
