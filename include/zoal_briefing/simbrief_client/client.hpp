@@ -1,7 +1,7 @@
 #ifndef ZOAL_BRIEFING_SIMBRIEF_CLIENT_HPP
 #define ZOAL_BRIEFING_SIMBRIEF_CLIENT_HPP
 
-#include "zoal_briefing/master/data_types/flight_plan.hpp"
+#include "zoal_briefing/data_types/flight_plan.hpp"
 #include <string>
 #include <optional>
 #include <thread>

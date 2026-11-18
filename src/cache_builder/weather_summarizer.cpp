@@ -1,5 +1,5 @@
-#include "zoal_briefing/master/cache_builder/weather_summarizer.hpp"
-#include "zoal_briefing/master/data_types/weather.hpp"
+#include "zoal_briefing/cache_builder/weather_summarizer.hpp"
+#include "zoal_briefing/data_types/weather.hpp"
 
 #include <iostream>
 #include <sstream>

@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/llm_bridge/fallback_chain.hpp"
+#include "zoal_briefing/llm_bridge/fallback_chain.hpp"
 
 #include <iostream>
 #include <thread>

@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/llm_bridge/llm_bridge.hpp"
+#include "zoal_briefing/llm_bridge/llm_bridge.hpp"
 #include <cassert>
 #include <iostream>
 

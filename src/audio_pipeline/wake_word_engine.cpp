@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/audio_pipeline/wake_word_engine.hpp"
+#include "zoal_briefing/audio_pipeline/wake_word_engine.hpp"
 
 namespace zoal_briefing::audio {
 

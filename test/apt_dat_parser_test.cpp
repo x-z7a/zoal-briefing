@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/data_types/airport.hpp"
+#include "zoal_briefing/data_types/airport.hpp"
 #include <cassert>
 #include <iostream>
 

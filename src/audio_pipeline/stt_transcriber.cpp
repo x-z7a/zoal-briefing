@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/audio_pipeline/stt_transcriber.hpp"
+#include "zoal_briefing/audio_pipeline/stt_transcriber.hpp"
 
 namespace zoal_briefing::audio {
 

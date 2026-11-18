@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/data_types/flight_plan.hpp"
+#include "zoal_briefing/data_types/flight_plan.hpp"
 
 namespace zoal_briefing::fp {
 

@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/llm_bridge/api_mode.hpp"
+#include "zoal_briefing/llm_bridge/api_mode.hpp"
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <sstream>

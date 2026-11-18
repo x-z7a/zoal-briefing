@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/simbrief_client/client.hpp"
+#include "zoal_briefing/simbrief_client/client.hpp"
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <fstream>

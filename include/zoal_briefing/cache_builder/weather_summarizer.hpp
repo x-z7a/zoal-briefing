@@ -1,7 +1,7 @@
 #ifndef ZOAL_BRIEFING_WEATHER_SUMMARIZER_HPP
 #define ZOAL_BRIEFING_WEATHER_SUMMARIZER_HPP
 
-#include "zoal_briefing/master/data_types/weather.hpp"
+#include "zoal_briefing/data_types/weather.hpp"
 #include <string>
 #include <vector>
 #include <optional>

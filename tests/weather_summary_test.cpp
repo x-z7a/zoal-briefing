@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/data_types/weather.hpp"
+#include "zoal_briefing/data_types/weather.hpp"
 #include <iostream>
 #include <cassert>
 

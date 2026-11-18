@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/cache_builder/grib_parser.hpp"
+#include "zoal_briefing/cache_builder/grib_parser.hpp"
 #include <iostream>
 
 namespace zoal_briefing::wx {

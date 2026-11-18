@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/llm_bridge/cli_mode.hpp"
+#include "zoal_briefing/llm_bridge/cli_mode.hpp"
 
 namespace zoal_briefing::llm {
 

@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/state_machine/state_machine.hpp"
+#include "zoal_briefing/state_machine/state_machine.hpp"
 #include <cassert>
 #include <iostream>
 

@@ -1,5 +1,5 @@
-#include "zoal_briefing/master/cache_builder/cache_builder.hpp"
-#include "zoal_briefing/master/cache_builder/weather_summarizer.hpp"
+#include "zoal_briefing/cache_builder/cache_builder.hpp"
+#include "zoal_briefing/cache_builder/weather_summarizer.hpp"
 
 #include <atomic>
 #include <thread>

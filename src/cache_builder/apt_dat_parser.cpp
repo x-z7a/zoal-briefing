@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/cache_builder/apt_dat_parser.hpp"
+#include "zoal_briefing/cache_builder/apt_dat_parser.hpp"
 
 namespace zoal_briefing::apt {
 

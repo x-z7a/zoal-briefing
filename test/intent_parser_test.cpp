@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/intent_parser/intent_parser.hpp"
+#include "zoal_briefing/intent_parser/intent_parser.hpp"
 #include <cassert>
 #include <iostream>
 

@@ -1,6 +1,6 @@
-#include "zoal_briefing/master/state_machine/state_machine.hpp"
-#include "zoal_briefing/master/llm_bridge/llm_bridge.hpp"
-#include "zoal_briefing/master/data_types/weather.hpp"
+#include "zoal_briefing/state_machine/state_machine.hpp"
+#include "zoal_briefing/llm_bridge/llm_bridge.hpp"
+#include "zoal_briefing/data_types/weather.hpp"
 #include <iostream>
 
 // Placeholder for X-Plane SDK headers (XPLMPlugging.h, XPLMDataAccess.h, etc.)

@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 #include <filesystem>
-#include "zoal_briefing/master/data_types/weather.hpp"
+#include "zoal_briefing/data_types/weather.hpp"
 
 namespace zoal_briefing::cache {
 

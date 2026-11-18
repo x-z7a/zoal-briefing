@@ -1,7 +1,7 @@
 #ifndef ZOAL_BRIEFING_APT_DAT_PARSER_HPP
 #define ZOAL_BRIEFING_APT_DAT_PARSER_HPP
 
-#include "zoal_briefing/master/data_types/airport.hpp"
+#include "zoal_briefing/data_types/airport.hpp"
 #include <string>
 
 namespace zoal_briefing::apt {

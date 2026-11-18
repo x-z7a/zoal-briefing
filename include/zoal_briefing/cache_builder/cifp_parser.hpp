@@ -1,7 +1,7 @@
 #ifndef ZOAL_BRIEFING_CIFP_PARSER_HPP
 #define ZOAL_BRIEFING_CIFP_PARSER_HPP
 
-#include "zoal_briefing/master/data_types/cifp.hpp"
+#include "zoal_briefing/data_types/cifp.hpp"
 #include <string>
 
 namespace zoal_briefing::cifp {

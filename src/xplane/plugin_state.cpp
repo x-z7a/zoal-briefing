@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/xplane/plugin_state.hpp"
+#include "zoal_briefing/xplane/plugin_state.hpp"
 
 namespace zoal_briefing::xplane {
 

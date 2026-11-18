@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/data_types/sid_star.hpp"
+#include "zoal_briefing/data_types/sid_star.hpp"
 
 namespace zoal_briefing::nav {
 

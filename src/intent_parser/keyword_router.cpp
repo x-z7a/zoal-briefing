@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/intent_parser/keyword_router.hpp"
+#include "zoal_briefing/intent_parser/keyword_router.hpp"
 
 namespace zoal_briefing::intent {
 

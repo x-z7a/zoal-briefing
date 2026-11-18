@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/audio_pipeline/tts_speaker.hpp"
+#include "zoal_briefing/audio_pipeline/tts_speaker.hpp"
 
 namespace zoal_briefing::audio {
 

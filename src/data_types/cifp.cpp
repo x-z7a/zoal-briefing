@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/data_types/cifp.hpp"
+#include "zoal_briefing/data_types/cifp.hpp"
 
 namespace zoal_briefing::cifp {
 

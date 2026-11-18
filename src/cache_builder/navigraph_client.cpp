@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/cache_builder/navigraph_client.hpp"
+#include "zoal_briefing/cache_builder/navigraph_client.hpp"
 
 namespace zoal_briefing::nav {
 

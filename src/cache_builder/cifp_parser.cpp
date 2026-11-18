@@ -1,4 +1,4 @@
-#include "zoal_briefing/master/cache_builder/cifp_parser.hpp"
+#include "zoal_briefing/cache_builder/cifp_parser.hpp"
 
 namespace zoal_briefing::cifp {
 
