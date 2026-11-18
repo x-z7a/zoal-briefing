@@ -2,13 +2,18 @@
 #define ZOAL_BRIEFING_XPLANE_IMGUI_WINDOW_HPP
 
 #include <XPLMDisplay.h>
+
 #include <functional>
 #include <utility>
 
 struct ImGuiContext;
+struct ImTextureData;
 
 namespace zoal_briefing::xplane {
 
+// ImguiWindow is an X-Plane window whose contents are a Dear ImGui frame.
+// It uses the panel-graphics helpers (XPLMPanelGraphics) so X-Plane renders it
+// natively, and clicks never make it a browser window.
 class ImguiWindow {
 public:
   using BuildFn = std::function<void()>;
@@ -20,6 +25,7 @@ public:
     int min_height = 0;
   };
 
+  // Created hidden, at the given global boxel rectangle (y up).
   ImguiWindow(int left, int top, int right, int bottom, BuildFn build,
               Options options);
   ImguiWindow(int left, int top, int right, int bottom, BuildFn build)
@@ -37,6 +43,7 @@ public:
   void geometry(int *left, int *top, int *right, int *bottom) const;
 
   ImGuiContext *context() const { return context_; }
+
   void set_framebuffer_scale(float scale);
   float framebuffer_scale() const { return framebuffer_scale_; }
 

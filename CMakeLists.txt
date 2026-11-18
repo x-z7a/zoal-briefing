@@ -10,24 +10,38 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Options — match the Makefile exactly.
 option(ZoalBriefing_BUILD_TESTS    "Build unit tests (SDK-free)"   ON)
 option(ZoalBriefing_BUILD_PLUGIN   "Build X-Plane .xpl plugin"     OFF)
 
-# Path to the X-Plane SDK root (empty = auto-download from GitHub releases).
 set(ZoalBriefing_XPLANE_SDK "" CACHE PATH "Path to the X-Plane SDK root")
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/XPlaneSDK.cmake)
 
 find_package(Threads REQUIRED)
 
+# ── Dear ImGui static library (needed by panel_view and plugin code) ─────────
+set(ZOAL_BRIEFING_IMGUI_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/.cache/imgui-1.92.9b")
+
+add_library(zoal_briefing_imgui STATIC
+    "${ZOAL_BRIEFING_IMGUI_SOURCE}/imgui.cpp"
+    "${ZOAL_BRIEFING_IMGUI_SOURCE}/imgui_draw.cpp"
+    "${ZOAL_BRIEFING_IMGUI_SOURCE}/imgui_tables.cpp"
+    "${ZOAL_BRIEFING_IMGUI_SOURCE}/imgui_widgets.cpp"
+)
+
+target_include_directories(zoal_briefing_imgui SYSTEM PUBLIC
+    "${ZOAL_BRIEFING_IMGUI_SOURCE}"
+)
+
+target_compile_definitions(zoal_briefing_imgui PUBLIC
+    IMGUI_DISABLE_DEMO_WINDOWS
+    IMGUI_DISABLE_DEBUG_TOOLS
+)
+
+set_target_properties(zoal_briefing_imgui PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # ── core library (SDK-free, builds on all platforms) ──────────────────────────
 add_library(zoal_briefing_core STATIC
-    # GUI panel
-    src/gui/panel_session.cpp
-    src/gui/panel_theme.cpp
-    src/gui/panel_view.cpp
-
     # Plugin glue (SDK-free parts)
     src/xplane/plugin_state.cpp
 
@@ -58,6 +72,10 @@ add_library(zoal_briefing_core STATIC
     # Intent parsing & audio pipeline
     src/intent_parser/intent_parser.cpp
     src/intent_parser/keyword_router.cpp
+
+    # Panel view state & session (shared with plugin module)
+    src/gui/panel_session.cpp
+    src/gui/panel_theme.cpp
 )
 
 target_include_directories(zoal_briefing_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -71,27 +89,6 @@ else()
         -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion
     )
 endif()
-
-# ── Dear ImGui static library (needed by panel_window.cpp) ──────────────────────
-set(ZOAL_BRIEFING_IMGUI_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/.cache/imgui-1.92.9b")
-
-add_library(zoal_briefing_imgui STATIC
-    "${ZOAL_BRIEFING_IMGUI_SOURCE}/imgui.cpp"
-    "${ZOAL_BRIEFING_IMGUI_SOURCE}/imgui_draw.cpp"
-    "${ZOAL_BRIEFING_IMGUI_SOURCE}/imgui_tables.cpp"
-    "${ZOAL_BRIEFING_IMGUI_SOURCE}/imgui_widgets.cpp"
-)
-
-target_include_directories(zoal_briefing_imgui SYSTEM PUBLIC
-    "${ZOAL_BRIEFING_IMGUI_SOURCE}"
-)
-
-target_compile_definitions(zoal_briefing_imgui PUBLIC
-    IMGUI_DISABLE_DEMO_WINDOWS
-    IMGUI_DISABLE_DEBUG_TOOLS
-)
-
-set_target_properties(zoal_briefing_imgui PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # ── X-Plane plugin module (only when SDK present) ────────────────────────────
 set(_zb_sdk_present OFF)
@@ -107,29 +104,47 @@ endif()
 if(ZoalBriefing_BUILD_PLUGIN AND _zb_sdk_present)
     message(STATUS "Building zoal-briefing .xpl plugin (SDK: ${ZoalBriefing_XPLANE_SDK})")
 
+    # X-Plane SDK 4.4+ provides panel-graphics ImGui helpers (XPLMPanelGraphics.h)
+    if(NOT EXISTS "${ZoalBriefing_XPLANE_SDK}/XPLM/XPLMPanelGraphics.h")
+        message(FATAL_ERROR "X-Plane SDK 4.4+ required (needs XPLMPanelGraphics.h).")
+    endif()
+
     add_library(zoal_briefing MODULE)
 
     target_sources(zoal_briefing PRIVATE
+        src/xplane/imgui_window.cpp
         src/xplane/panel_window.cpp
         src/xplane/xplane_plugin.cpp
+        # Panel view (moved from core — must be in plugin so draw_panel symbol exports correctly)
+        src/gui/panel_view.cpp
     )
 
-    target_link_libraries(zoal_briefing PRIVATE zoal_briefing_core zoal_briefing_imgui)
-    
-    # X-Plane SDK 4.4+ provides panel-graphics ImGui helpers (XPLMPanelGraphics.h)
-    # Required for the panel to render frames natively in X-Plane
-    if(NOT EXISTS "${ZoalBriefing_XPLANE_SDK}/XPLM/XPLMPanelGraphics.h")
-        message(FATAL_ERROR "X-Plane SDK 4.4+ required (needs XPLMPanelGraphics.h). "
-            "Download from https://github.com/x-plane/X-Plane-SDK/releases")
-    endif()
-    target_include_directories(zoal_briefing PRIVATE 
+    target_include_directories(zoal_briefing PRIVATE
         ${ZoalBriefing_XPLANE_SDK}
         ${ZoalBriefing_XPLANE_SDK}/XPLM
         ${ZoalBriefing_XPLANE_SDK}/CHeaders
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
 
+    target_link_libraries(zoal_briefing PRIVATE zoal_briefing_core zoal_briefing_imgui)
+
+    # Enable all XPLM API features (matches zoal-atc pattern)
+    target_compile_definitions(zoal_briefing PRIVATE
+        XPLM200=1 XPLM210=1 XPLM300=1 XPLM301=1
+        XPLM400=1 XPLM410=1 XPLM420=1 XPLM430=1 XPLM440=1
+    )
+
+    # ── SDK linking (matches zoal-atc pattern) ────────────────────────────
     if(APPLE)
         target_compile_definitions(zoal_briefing PRIVATE APL=1)
+        set(_zb_xplm_framework "${ZoalBriefing_XPLANE_SDK}/Libraries/Mac/XPLM.framework/Versions/Current/XPLM")
+        if(EXISTS "${_zb_xplm_framework}")
+            message(STATUS "Linking against XPLM framework: ${_zb_xplm_framework}")
+            target_link_libraries(zoal_briefing PRIVATE "${_zb_xplm_framework}")
+        else()
+            message(WARNING "XPLM.framework not found, using dynamic lookup")
+            set_target_properties(zoal_briefing PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+        endif()
         target_link_libraries(zoal_briefing PRIVATE
             "-framework CoreAudio"
             "-framework AudioToolbox"
@@ -141,10 +156,22 @@ if(ZoalBriefing_BUILD_PLUGIN AND _zb_sdk_present)
         )
     elseif(WIN32)
         target_compile_definitions(zoal_briefing PRIVATE IBM=1)
-        target_link_libraries(zoal_briefing PRIVATE ws2_32 winmm)
+        find_library(_zb_xplm_win NAMES XPLM_64 XPLM 
+            PATHS "${ZoalBriefing_XPLANE_SDK}/Libraries/Win" NO_DEFAULT_PATH)
+        if(_zb_xplm_win)
+            message(STATUS "Linking against XPLM Windows library: ${_zb_xplm_win}")
+            target_link_libraries(zoal_briefing PRIVATE "${_zb_xplm_win}")
+        endif()
+        target_link_libraries(zoal_briefing PRIVATE ws2_32 winmm ole32 uuid)
         target_compile_options(zoal_briefing PRIVATE /WX-)
     else()
         target_compile_definitions(zoal_briefing PRIVATE LIN=1)
+        find_library(_zb_xplm_lin NAMES XPLM_64.so XPLM_64
+            PATHS "${ZoalBriefing_XPLANE_SDK}/Libraries/Lin" NO_DEFAULT_PATH)
+        if(_zb_xplm_lin)
+            message(STATUS "Linking against XPLM Linux library: ${_zb_xplm_lin}")
+            target_link_libraries(zoal_briefing PRIVATE "${_zb_xplm_lin}")
+        endif()
         target_link_libraries(zoal_briefing PRIVATE "-lX11" pthread dl m)
     endif()
 

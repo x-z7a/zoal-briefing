@@ -4,13 +4,10 @@
 #include "zoal_briefing/gui/panel_session.hpp"
 
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <string>
-#include <vector>
+#include <functional>
 
-// Forward declaration — the actual type is in imgui_window.hpp.
-struct ImguiWindow;
 struct ImGuiContext;
 
 namespace zoal_briefing::xplane {
@@ -24,8 +21,6 @@ namespace zoal_briefing::xplane {
 
 struct PanelConfig {
   std::string plugin_version;
-  // The GUI proxy the panel talks through.
-  std::function<void(const std::string &action, const std::string &payload)> local_action;
 };
 
 // Start creates the window (hidden), installs the toggle command and menu.
@@ -37,4 +32,4 @@ void tick_panel();
 
 } // namespace zoal_briefing::xplane
 
-#endif // ZOAL_BRIEFING_XPLANE_PANEL_WINDOW_HPP
+#endif

@@ -3,28 +3,25 @@
 
 #include "zoal_briefing/gui/panel_session.hpp"
 #include "zoal_briefing/gui/panel_theme.hpp"
+
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <vector>
-#include <cstdint>
 
 namespace zoal_briefing::gui {
 
-// --- the typeface --------------------------------------------------------------
+// --- panel result --------------------------------------------------------------
 
-struct Typeface {
-  // ImFont* pointers are filled in at runtime by the panel window.
-  void *regular = nullptr;   // ImGuiFont*
-  void *semibold = nullptr;  // ImGuiFont*  
-  void *bold = nullptr;      // ImGuiFont*
-  float em_to_line = 1.2f;
-  float css(float px) const { return px * em_to_line; }
+struct PanelViewResult {
+  bool drag_started = false;
+  bool dragging = false;
 };
 
-// --- panel view state (pilot edits, which tab is up) ---------------------------
-
+// What the view keeps between frames that the session has no business
+// holding: which tab is up, what is half-typed, where the log is scrolled.
 struct PanelViewState {
-  int tab = 0;  // 0 Home, 1 Settings
+  int tab = 0; // 0 Home, 1 Settings
   
   // Settings fields.
   char wake_word[64] = {};
@@ -32,9 +29,7 @@ struct PanelViewState {
   char model_name[128] = {};
   
   // Track whether settings have been loaded from disk.
-  bool wake_word_loaded = false;
-  bool llm_endpoint_loaded = false;
-  bool model_name_loaded = false;
+  bool settings_loaded = false;
   
   // Stored copies for dirty-checking (reload when plugin value changes).
   std::string wake_word_stored;
@@ -51,20 +46,11 @@ struct PanelFrame {
   std::vector<std::function<void()>> *later = nullptr;
 };
 
-// --- panel result ----------------------------------------------------------------
-
-struct PanelViewResult {
-  bool drag_started = false;
-  bool dragging = false;
-};
-
 // Draws one frame of the briefing panel. Returns true when a tab change or
 // save needs to trigger an action callback.
 PanelViewResult draw_panel(PanelSession &session, PanelViewState &state,
-                           const Typeface &face, const PanelFrame &frame,
-                           std::function<void(const std::string &action,
-                                              const std::string &payload)> on_action);
+                           const PanelFrame &frame);
 
 } // namespace zoal_briefing::gui
 
-#endif // ZOAL_BRIEFING_GUI_PANEL_VIEW_HPP
+#endif

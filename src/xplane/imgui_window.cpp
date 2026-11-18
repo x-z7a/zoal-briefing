@@ -13,11 +13,10 @@
 
 namespace zoal_briefing::xplane {
 
-// The panel-graphics helpers take ImGui's buffers as they are.
 static_assert(sizeof(ImDrawVert) == 5 * sizeof(float),
               "XPLMMesh_t wants 20-byte vertices: pos, uv, packed RGBA8");
 static_assert(sizeof(ImDrawIdx) == sizeof(std::uint16_t),
-              "XPLMMesh_t wants 16-bit indices");
+              "XPLMMesh_t wants 16-bit indices; keep ImDrawIdx at its default");
 
 namespace {
 
@@ -38,6 +37,64 @@ public:
 private:
   ImGuiContext *previous_;
 };
+
+void render_panel(ImguiWindow *self, ImDrawData *draw_data) {
+  if (draw_data->CmdListsCount == 0) return;
+
+  int total_verts = 0, total_idxs = 0;
+  for (const ImDrawList *list : draw_data->CmdLists) {
+    total_verts += list->VtxBuffer.Size;
+    total_idxs += list->IdxBuffer.Size;
+  }
+
+  std::vector<float> verts(total_verts * 5);
+  std::vector<uint16_t> idxs(total_idxs);
+  
+  int voff = 0, ioff = 0;
+  for (const ImDrawList *list : draw_data->CmdLists) {
+    memcpy(verts.data() + voff * 5, list->VtxBuffer.Data, 
+           list->VtxBuffer.Size * sizeof(ImDrawVert));
+    memcpy(idxs.data() + ioff, list->IdxBuffer.Data,
+           list->IdxBuffer.Size * sizeof(ImDrawIdx));
+    voff += list->VtxBuffer.Size;
+    ioff += list->IdxBuffer.Size;
+  }
+
+  XPLMMesh_t mesh = {};
+  mesh.vertex_count = total_verts;
+  mesh.vertices = verts.data();
+  mesh.index_count = total_idxs;
+  mesh.indices = idxs.data();
+
+  std::vector<XPLMDrawCall_t> calls;
+  for (const ImDrawList *list : draw_data->CmdLists) {
+    for (const ImDrawCmd &cmd : list->CmdBuffer) {
+      if (cmd.UserCallback != nullptr || cmd.ElemCount == 0) continue;
+      XPLMDrawCall_t call = {};
+      call.tex_ref = texture_handle(cmd.GetTexID());
+      call.scissors[0] = cmd.ClipRect.x - draw_data->DisplayPos.x;
+      call.scissors[1] = cmd.ClipRect.y - draw_data->DisplayPos.y;
+      call.scissors[2] = cmd.ClipRect.z - draw_data->DisplayPos.x;
+      call.scissors[3] = cmd.ClipRect.w - draw_data->DisplayPos.y;
+      call.idx_offset = static_cast<int>(cmd.IdxOffset);
+      call.element_count = static_cast<int>(cmd.ElemCount);
+      call.vtx_offset = static_cast<int>(cmd.VtxOffset);
+      calls.push_back(call);
+    }
+  }
+
+  if (calls.empty()) return;
+
+  int left = 0, top = 0, right = 0, bottom = 0;
+  self->geometry(&left, &top, &right, &bottom);
+  
+  XPLMTransformPush();
+  XPLMTransformTranslate(static_cast<float>(left), static_cast<float>(top));
+  XPLMTransformScale(1.0f, -1.0f);
+
+  XPLMDrawCalls(&mesh, static_cast<int>(calls.size()), calls.data());
+  XPLMTransformPop();
+}
 
 } // namespace
 
@@ -66,13 +123,17 @@ ImguiWindow::ImguiWindow(int left, int top, int right, int bottom,
   params.bottom = bottom;
   params.visible = 0;
   params.drawWindowFunc = draw_cb;
-  params.mouseClickCallback = click_cb;
-  params.keyDownAction = key_cb;
-  params.ref = this;
-
-  window_ = XPLMCreateWindow(&params);
+  params.handleMouseClickFunc = click_cb;
+  params.handleKeyFunc = key_cb;
+  params.refcon = this;
+  params.decorateAsFloatingWindow =
+      options_.resizable ? xplm_WindowDecorationSelfDecoratedResizable
+                         : xplm_WindowDecorationSelfDecorated;
+  params.layer = xplm_WindowLayerFloatingWindows;
+  params.contentType = xplm_WindowContentTypePanelGraphics;
+  window_ = XPLMCreateWindowEx(&params);
   if (window_) {
-    last_time_ = XPLMGetTime();
+    last_time_ = XPLMGetElapsedTime();
   }
 }
 
@@ -86,17 +147,12 @@ ImguiWindow::~ImguiWindow() {
 }
 
 bool ImguiWindow::visible() const {
-  if (!window_) return false;
-  return XPLMGetWindowIsVisible(window_) == 1;
+  return window_ && XPLMGetWindowIsVisible(window_) != 0;
 }
 
 void ImguiWindow::set_visible(bool v) {
   if (!window_) return;
-  if (v) {
-    XPLMShowWindow(window_);
-  } else {
-    XPLMHideWindow(window_);
-  }
+  XPLMSetWindowIsVisible(window_, v ? 1 : 0);
 }
 
 void ImguiWindow::bring_to_front() {
@@ -108,74 +164,46 @@ void ImguiWindow::set_geometry(int left, int top, int right, int bottom) {
   XPLMSetWindowGeometry(window_, left, top, right, bottom);
 }
 
-void ImguiWindow::geometry(int *left, int *top, int *right, int *bottom) const {
-  if (window_) XPLMGetWindowInfo(window_, left, top, right, bottom);
-}
-
-void ImguiWindow::set_framebuffer_scale(float scale) {
-  framebuffer_scale_ = scale;
+void ImguiWindow::geometry(int *left, int *top, int *right,
+                           int *bottom) const {
+  int l = 0, t = 0, r = 0, b = 0;
+  if (window_) XPLMGetWindowGeometry(window_, &l, &t, &r, &b);
+  if (left) *left = l;
+  if (top) *top = t;
+  if (right) *right = r;
+  if (bottom) *bottom = b;
 }
 
 void ImguiWindow::draw() {
   int left = 0, top2 = 0, right = 0, bottom = 0;
-  if (window_) XPLMGetWindowInfo(window_, &left, &top2, &right, &bottom);
+  geometry(&left, &top2, &right, &bottom);
   
   float w = static_cast<float>(right - left);
   float h = static_cast<float>(top2 - bottom);
   if (w <= 0 || h <= 0) return;
 
+  ContextScope scope(context_);
   ImGuiIO &io = ImGui::GetIO();
   io.DisplaySize = ImVec2(w, h);
   
-  float time = XPLMGetTime();
-  float dt = std::max(time - last_time_, 0.0f);
-  last_time_ = time;
-  io.DeltaTime = dt;
+  const float now = XPLMGetElapsedTime();
+  io.DeltaTime = (last_time_ > 0.0f && now > last_time_) ? now - last_time_ : 1.0f / 60.0f;
+  last_time_ = now;
 
-  // Keyboard state (simplified)
-  for (int i = 0; i < 256; ++i) {
-    bool down = XPLMIsKeyDown(i);
-    io.KeysDown[i] = down;
-    if (down) io.KeyDownDuration[i] = dt;
-  }
-  io.KeyShift = io.KeysDown[VK_LSHIFT] || io.KeysDown[VK_RSHIFT];
-  io.KeyCtrl = io.KeysDown[VK_LCONTROL] || io.KeysDown[VK_RCONTROL];
-  io.KeyAlt = io.KeysDown[VK_LMENU] || io.KeysDown[VK_RMENU];
-
-  ContextScope scope(context_);
-  
   ImGui::NewFrame();
-  build_();
+  if (build_) build_();
   ImGui::Render();
 
-  // Render with X-Plane panel graphics
-  int l = 0, t = 0, r = 0, b = 0;
-  if (window_) XPLMGetWindowInfo(window_, &l, &t, &r, &b);
-  
-  float pw = static_cast<float>(r - l) * framebuffer_scale_;
-  float ph = static_cast<float>(t - b) * framebuffer_scale_;
-  
   ImDrawData *draw_data = ImGui::GetDrawData();
-  
-  XPLMDrawPanel_t info = {};
-  info.structSize = sizeof(info);
-  info.left = l;
-  info.top = t;
-  info.right = r;
-  info.bottom = b;
-  info.pixelScaleX = framebuffer_scale_;
-  info.pixelScaleY = framebuffer_scale_;
-  
-  XPLMDrawPanel(draw_data, &info);
+  render_panel(this, draw_data);
 }
 
 int ImguiWindow::click(int x, int y, XPLMMouseStatus status, int button) {
   ContextScope scope(context_);
   ImGuiIO &io = ImGui::GetIO();
   
-  // Convert from panel coordinates to local window coords
   int left = 0, top2 = 0, right = 0, bottom = 0;
-  if (window_) XPLMGetWindowInfo(window_, &left, &top2, &right, &bottom);
+  if (window_) XPLMGetWindowGeometry(window_, &left, &top2, &right, &bottom);
   float wx = static_cast<float>(x - left);
   float wy = static_cast<float>(top2 - y);
   
@@ -184,32 +212,20 @@ int ImguiWindow::click(int x, int y, XPLMMouseStatus status, int button) {
       io.MouseDown[button] = true; 
       io.MousePos = ImVec2(wx, wy); 
       break;
-    case xplm_Up: 
+    case xplm_MouseUp: 
       io.MouseDown[button] = false; 
       break;
-    case xplm_Drag: 
+    case xplm_MouseDrag: 
       io.MousePos = ImVec2(wx, wy); 
       break;
   }
   
   ImGui::NewFrame();
-  build_();
+  if (build_) build_();
   ImGui::Render();
-  
-  // Re-render with panel graphics after click
-  int l = 0, t = 0, r = 0, b = 0;
-  if (window_) XPLMGetWindowInfo(window_, &l, &t, &r, &b);
-  float pw = static_cast<float>(r - l) * framebuffer_scale_;
-  float ph = static_cast<float>(t - b) * framebuffer_scale_;
-  
+
   ImDrawData *draw_data = ImGui::GetDrawData();
-  XPLMDrawPanel_t info = {};
-  info.structSize = sizeof(info);
-  info.left = l; info.top = t;
-  info.right = r; info.bottom = b;
-  info.pixelScaleX = framebuffer_scale_;
-  info.pixelScaleY = framebuffer_scale_;
-  XPLMDrawPanel(draw_data, &info);
+  render_panel(this, draw_data);
   
   return 1;
 }
@@ -224,8 +240,9 @@ int ImguiWindow::click_cb(XPLMWindowID w, int x, int y, XPLMMouseStatus status, 
   return self->click(x, y, status, 0);
 }
 
-void ImguiWindow::key_cb(XPLMWindowID w, char key, XPLMKeyFlags flags, char virtual_key, void *ref, int user_data) {
-  (void)w; (void)flags; (void)virtual_key; (void)ref; (void)user_data;
+void ImguiWindow::key_cb(XPLMWindowID w, char key, XPLMKeyFlags flags, 
+                        char virtual_key, void *ref, int user_data) {
+  (void)w; (void)key; (void)flags; (void)virtual_key; (void)ref; (void)user_data;
 }
 
 } // namespace zoal_briefing::xplane

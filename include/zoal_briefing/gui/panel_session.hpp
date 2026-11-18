@@ -22,15 +22,6 @@ enum class PluginStatus {
   COUNT
 };
 
-// What the console says about the flight.
-struct PanelTelemetry {
-  double frequency_mhz = 0.0;
-  double altitude_ft_msl = 0.0;
-  double groundspeed_kts = 0.0;
-  bool on_ground = false;
-  std::string airport;
-};
-
 // The current briefing context.
 struct PanelBriefing {
   std::string icao;
@@ -42,47 +33,48 @@ class PanelSession {
 public:
   void set_status(PluginStatus status);
   PluginStatus status() const;
-  
+
   void set_connected(bool connected);
   bool connected() const;
-  
+
   void set_listening(bool listening);
   bool listening() const;
-  
+
   void set_airport(const std::string &airport);
   const std::string &airport() const;
-  
+
   void set_briefing_text(const std::string &text);
   const std::string &briefing_text() const;
-  
+
   void set_theme(std::string theme_name);
   std::string theme() const;
-  
+
   // Settings persistence.
   void load_settings();
   void save_settings();
-  
+
   void set_wake_word(const std::string &word);
   std::string wake_word() const;
-  
+
   void set_llm_endpoint(const std::string &endpoint);
   std::string llm_endpoint() const;
-  
+
   void set_model_name(const std::string &model);
   std::string model_name() const;
-  
-  // Connection / bridge state.
-  bool connection_loaded() const { return connected_; }
-  bool settings_loaded() const { return true; }
-  const PanelTelemetry *telemetry() const { return nullptr; }
-  
-  // Action callback from panel UI.
-  void on_action(const std::string &action, const std::string &payload);
+
+  // Connection / bridge state — needed by panel_view.
+  bool reachable() const { return connected_; }
+
+  bool connection_loaded() const { return settings_loaded_; }
+  bool settings_loaded() const { return settings_loaded_; }
+
+  void set_reachable(bool reachable);
 
 private:
   PluginStatus status_ = PluginStatus::IDLE;
   bool connected_ = false;
   bool listening_ = false;
+  bool settings_loaded_ = false;
   std::string airport_;
   std::string briefing_text_;
   std::string theme_name_ = "graphite";
