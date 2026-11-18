@@ -12,8 +12,9 @@ DIST_DIR ?= $(ROOT_DIR)/dist
 RELEASE_DIR ?= $(DIST_DIR)/zoal-briefing
 BUILD_TYPE ?= Release
 
-# Local X-Plane plugin installation directory (override for testing on non-standard installs).
-LOCAL_XPLANE_PLUGIN_DIR ?= $(HOME)/X-Plane 12/Resources/plugins/zoal-briefing/mac_x64
+# Local X-Plane plugin folder (override for non-standard installs). The .xpl
+# goes in its platform subfolder, as in zoal-atc: zoal-briefing/mac_x64/zoal-briefing.xpl.
+LOCAL_XPLANE_PLUGIN_DIR ?= $(HOME)/X-Plane 12/Resources/plugins/zoal-briefing
 
 PLUGIN_XPL := $(PLUGIN_BUILD_DIR)/zoal-briefing.xpl
 
@@ -49,7 +50,7 @@ else
 CMAKE_GENERATOR :=
 endif
 
-.PHONY: help test plugin install-plugin release clean
+.PHONY: help test plugin install install-plugin release clean
 
 .DEFAULT_GOAL := help
 
@@ -58,7 +59,8 @@ help:
 	@echo
 	@echo "  test            build and run the SDK-free C++ core tests"
 	@echo "  plugin          build the .xpl (fetches the X-Plane SDK from GitHub releases)"
-	@echo "  install-plugin  build and install into X-Plane ($(LOCAL_XPLANE_PLUGIN_DIR))"
+	@echo "  install         build and install into X-Plane ($(LOCAL_XPLANE_PLUGIN_DIR))"
+	@echo "  install-plugin  same as install"
 	@echo "  release         assemble the release tree in dist/zoal-briefing"
 	@echo "  clean           remove build outputs and dist/"
 
@@ -95,17 +97,19 @@ endif
 # Install plugin into local X-Plane plugins directory.
 # Mirrors zoal-atc pattern: build the plugin, then copy it into X-Plane's Plugins folder.
 
+install: install-plugin
+
 install-plugin: plugin
 	@plugins_dir="$$(dirname "$(LOCAL_XPLANE_PLUGIN_DIR)")"; \
 	if [ ! -d "$$plugins_dir" ]; then \
-		echo "No X-Plane plugins folder at $$plugins_dir" >&2; \
-		echo "Pass LOCAL_XPLANE_PLUGIN_DIR=/path/to/X-Plane/Resources/plugins/zoal-briefing" >&2; \
+		echo "no X-Plane plugins folder at $$plugins_dir" >&2; \
+		echo "pass LOCAL_XPLANE_PLUGIN_DIR=/path/to/X-Plane/Resources/plugins/zoal-briefing" >&2; \
 		exit 1; \
-	fi; \
-	rm -rf "$(LOCAL_XPLANE_PLUGIN_DIR)"; \
-	mkdir -p "$(LOCAL_XPLANE_PLUGIN_DIR)"; \
-	cp "$(PLUGIN_XPL)" "$(LOCAL_XPLANE_PLUGIN_DIR)/"; \
-	echo "Installed zoal-briefing.xpl into $(LOCAL_XPLANE_PLUGIN_DIR)"
+	fi
+	rm -rf "$(LOCAL_XPLANE_PLUGIN_DIR)"
+	mkdir -p "$(LOCAL_XPLANE_PLUGIN_DIR)/$(PLUGIN_PLATFORM_DIR)"
+	cp "$(PLUGIN_XPL)" "$(LOCAL_XPLANE_PLUGIN_DIR)/$(PLUGIN_PLATFORM_DIR)/zoal-briefing.xpl"
+	@echo "installed into $(LOCAL_XPLANE_PLUGIN_DIR)/$(PLUGIN_PLATFORM_DIR)"
 
 # Assemble release tree in dist/zoal-briefing (includes README).
 release: plugin

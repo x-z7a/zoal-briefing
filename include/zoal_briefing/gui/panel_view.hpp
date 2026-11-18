@@ -14,8 +14,12 @@ namespace zoal_briefing::gui {
 // --- panel result --------------------------------------------------------------
 
 struct PanelViewResult {
+  // The pilot pressed on the panel background (not a control) this frame, or
+  // is still holding it: the window follows the mouse.
   bool drag_started = false;
   bool dragging = false;
+  // The close button was pressed.
+  bool close = false;
 };
 
 // What the view keeps between frames that the session has no business
@@ -30,6 +34,12 @@ struct PanelViewState {
   
   // Track whether settings have been loaded from disk.
   bool settings_loaded = false;
+
+  // A background drag is in progress (started on the panel, mouse still down).
+  bool drag_active = false;
+
+  // When the last save happened, for the "Settings saved." note.
+  uint64_t saved_at_ms = 0;
   
   // Stored copies for dirty-checking (reload when plugin value changes).
   std::string wake_word_stored;

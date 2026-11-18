@@ -19,13 +19,14 @@ using zoal_briefing::xplane::get_plugin_state;
 constexpr const char* kLogPrefix = "[zoal-briefing] ";
 static std::atomic<bool> g_plugin_initialized{false};
 
-// Flight loop callback — runs every ~1s while the sim is active.
+// Flight loop callback — runs every frame so the panel's presses and drags
+// are handled without lag.
 static float flight_loop(float, float, int, void*) {
-    if (!g_plugin_initialized.load()) return 1.0f;
+    if (!g_plugin_initialized.load()) return -1.0f;
     
-    // Tick the panel window (drains ImGui actions).
+    // Tick the panel window (drains ImGui actions, moves a dragged panel).
     zoal_briefing::xplane::tick_panel();
-    return 1.0f;
+    return -1.0f;
 }
 
 PLUGIN_API int XPluginStart(char* outName, char* outSignature, char* outPayload) {
@@ -36,7 +37,7 @@ PLUGIN_API int XPluginStart(char* outName, char* outSignature, char* outPayload)
     state.set_llm_available(true);
 
     // Register flight loop using the modern XPLMProcessing.h API.
-    XPLMRegisterFlightLoopCallback(flight_loop, 1.0f, nullptr);
+    XPLMRegisterFlightLoopCallback(flight_loop, -1.0f, nullptr);
     XPLMDebugString("[zoal-briefing] flight loop registered\n");
 
     // Initialize the panel window with simple config.
@@ -59,6 +60,7 @@ PLUGIN_API void XPluginStop() {
     XPLMDebugString("[zoal-briefing] unloading...\n");
     
     g_plugin_initialized.store(false);
+    XPLMUnregisterFlightLoopCallback(flight_loop, nullptr);
     zoal_briefing::xplane::stop_panel();
     XPLMDebugString("[zoal-briefing] unloaded\n");
 }

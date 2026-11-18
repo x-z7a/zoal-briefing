@@ -1,42 +1,61 @@
 #include "panel_window.hpp"
 
 // The panel uses Dear ImGui, which X-Plane renders through its native
-// panel-graphics helpers (XPLMPanelGraphics). We need the window wrapper that
-// bridges X-Plane's callbacks into an ImGui context.
+// panel-graphics helpers (XPLMPanelGraphics). ImguiWindow bridges X-Plane's
+// callbacks into an ImGui context.
 
 #include "imgui_window.hpp"
 
+#include <XPLMDataAccess.h>
 #include <XPLMDisplay.h>
 #include <XPLMMenus.h>
 #include <XPLMPlugin.h>
 #include <XPLMUtilities.h>
+
+#include <algorithm>
+#include <chrono>
+#include <cstring>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
-#include <algorithm>
-#include <chrono>
 
 #include "imgui.h"
-#include "zoal_briefing/gui/panel_view.hpp"
 #include "zoal_briefing/gui/panel_session.hpp"
+#include "zoal_briefing/gui/panel_view.hpp"
 
 namespace zoal_briefing::xplane {
 
 namespace {
 
-constexpr int kOpenWidth = 1120;
-constexpr int kOpenHeight = 740;
-constexpr int kMinWidth = 760;
-constexpr int kMinHeight = 320;
+constexpr const char *kPanelCommandName = "zoal_briefing/toggle_panel";
 
-// Per-panel state: session, view state, window.
+constexpr int kOpenWidth = 720;
+constexpr int kOpenHeight = 520;
+constexpr int kMinWidth = 520;
+constexpr int kMinHeight = 360;
+constexpr float kFontSize = 15.0f;
+
 struct Panel {
   std::unique_ptr<ImguiWindow> window;
   gui::PanelSession session;
   gui::PanelViewState view_state;
   std::string version;
-  bool initialized = false;
+  // Presses from the last frame, run from the flight loop.
+  std::vector<std::function<void()>> later;
+  gui::PanelViewResult last;
+  // Where the drag started: the mouse and the window, in global boxels.
+  bool dragging = false;
+  int drag_mouse_x = 0;
+  int drag_mouse_y = 0;
+  int drag_left = 0;
+  int drag_top = 0;
+  bool placed = false;
+  XPLMCommandRef command = nullptr;
+  XPLMMenuID menu = nullptr;
+  XPLMDataRef ui_scale = nullptr;
 };
 
 std::unique_ptr<Panel> g_panel;
@@ -45,67 +64,72 @@ void panel_log(const std::string &message) {
   XPLMDebugString(("[zoal-briefing] " + message + "\n").c_str());
 }
 
-void setup_view_state() {
-  if (!g_panel || !g_panel->window) return;
-  
-  // Load settings into the view state from disk on first frame.
-  if (!g_panel->session.settings_loaded()) {
-    g_panel->session.load_settings();
+std::uint64_t steady_now() {
+  return static_cast<std::uint64_t>(
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::steady_clock::now().time_since_epoch())
+          .count());
+}
+
+std::int64_t wall_now() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(
+             std::chrono::system_clock::now().time_since_epoch())
+      .count();
+}
+
+void copy_field(char *dst, std::size_t size, const std::string &src) {
+  std::strncpy(dst, src.c_str(), size - 1);
+  dst[size - 1] = '\0';
+}
+
+// Settings come off disk once, into both the session and the text fields.
+void load_view_state() {
+  Panel &panel = *g_panel;
+  if (panel.view_state.settings_loaded) return;
+  if (!panel.session.settings_loaded()) {
+    panel.session.load_settings();
   }
-  
-  // Sync stored copies to panel_view's dirty-checking.
-  strncpy(g_panel->view_state.wake_word, 
-          g_panel->session.wake_word().c_str(), 
-          sizeof(g_panel->view_state.wake_word));
-  strncpy(g_panel->view_state.llm_endpoint,
-          g_panel->session.llm_endpoint().c_str(),
-          sizeof(g_panel->view_state.llm_endpoint));
-  strncpy(g_panel->view_state.model_name,
-          g_panel->session.model_name().c_str(),
-          sizeof(g_panel->view_state.model_name));
-  
-  g_panel->view_state.wake_word_stored = g_panel->session.wake_word();
-  g_panel->view_state.llm_endpoint_stored = g_panel->session.llm_endpoint();
-  g_panel->view_state.model_name_stored = g_panel->session.model_name();
+  copy_field(panel.view_state.wake_word, sizeof(panel.view_state.wake_word),
+             panel.session.wake_word());
+  copy_field(panel.view_state.llm_endpoint,
+             sizeof(panel.view_state.llm_endpoint),
+             panel.session.llm_endpoint());
+  copy_field(panel.view_state.model_name, sizeof(panel.view_state.model_name),
+             panel.session.model_name());
+  panel.view_state.wake_word_stored = panel.session.wake_word();
+  panel.view_state.llm_endpoint_stored = panel.session.llm_endpoint();
+  panel.view_state.model_name_stored = panel.session.model_name();
+  panel.view_state.settings_loaded = true;
 }
 
 void build_panel() {
-  if (!g_panel || !g_panel->window) return;
-  
-  // Ensure settings are loaded.
-  setup_view_state();
-  
+  if (!g_panel) return;
   gui::PanelFrame frame;
   frame.version = g_panel->version;
-  frame.steady_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::system_clock::now().time_since_epoch()).count();
-  frame.wall_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::steady_clock::now().time_since_epoch()).count();
-
-  // Draw the panel.
-  gui::draw_panel(g_panel->session, g_panel->view_state, frame);
+  frame.steady_ms = steady_now();
+  frame.wall_ms = wall_now();
+  frame.later = &g_panel->later;
+  g_panel->last = gui::draw_panel(g_panel->session, g_panel->view_state, frame);
 }
 
-// Centred on the main screen the first time it opens.
+// Centred on the main screen the first time it opens; where the pilot left it
+// after that.
 void place_initially() {
-  int left = 0, top2 = 0, right = 0, bottom = 0;
-  XPLMGetScreenBoundsGlobal(&left, &top2, &right, &bottom);
+  int left = 0, top = 0, right = 0, bottom = 0;
+  XPLMGetScreenBoundsGlobal(&left, &top, &right, &bottom);
   const int screen_w = right - left;
-  const int screen_h = top2 - bottom;
-  const int width = std::max(kMinWidth, 
-                            std::min(kOpenWidth, screen_w - 80));
-  const int height = std::max(kMinHeight, 
-                             std::min(kOpenHeight, screen_h - 120));
+  const int screen_h = top - bottom;
+  const int width = std::max(kMinWidth, std::min(kOpenWidth, screen_w - 80));
+  const int height = std::max(kMinHeight, std::min(kOpenHeight, screen_h - 120));
   const int x = left + (screen_w - width) / 2;
-  const int y = top2 - (screen_h - height) / 2;
-  if (g_panel && g_panel->window) {
-    g_panel->window->set_geometry(x, y, x + width, y - height);
-  }
+  const int y = top - (screen_h - height) / 2;
+  g_panel->window->set_geometry(x, y, x + width, y - height);
+  g_panel->placed = true;
 }
 
 void set_shown(bool shown) {
   if (!g_panel || !g_panel->window) return;
-  if (shown) place_initially();
+  if (shown && !g_panel->placed) place_initially();
   g_panel->window->set_visible(shown);
   if (shown) g_panel->window->bring_to_front();
 }
@@ -120,7 +144,7 @@ int toggle_handler(XPLMCommandRef, XPLMCommandPhase phase, void *) {
 void install_menu() {
   XPLMMenuID plugins = XPLMFindPluginsMenu();
   if (!plugins) {
-    panel_log("no plugins menu found");
+    panel_log("no plugins menu; the panel is reachable by command only");
     return;
   }
   const int index = XPLMAppendMenuItem(plugins, "zoal-briefing", nullptr, 1);
@@ -128,18 +152,33 @@ void install_menu() {
     panel_log("could not append the zoal-briefing menu");
     return;
   }
-  XPLMMenuID menu = XPLMCreateMenu("zoal-briefing", plugins, index, 
-                                   nullptr, nullptr);
-  if (!menu) {
+  g_panel->menu =
+      XPLMCreateMenu("zoal-briefing", plugins, index, nullptr, nullptr);
+  if (!g_panel->menu) {
     panel_log("could not create the zoal-briefing menu");
     return;
   }
-  panel_log("plugins menu installed");
+  XPLMAppendMenuItemWithCommand(g_panel->menu, "Toggle Panel", g_panel->command);
 }
 
-std::uint64_t steady_now() {
-  return std::chrono::duration_cast<std::chrono::milliseconds>(
-             std::chrono::steady_clock::now().time_since_epoch()).count();
+// X-Plane's own UI face, on every install; ImGui's built-in font otherwise.
+void load_font() {
+  char system_path[1024] = {};
+  XPLMGetSystemPath(system_path);
+  const std::filesystem::path roboto = std::filesystem::path(system_path) /
+                                       "Resources" / "fonts" /
+                                       "Roboto-Regular.ttf";
+  ImGuiIO &io = ImGui::GetIO();
+  std::error_code ec;
+  if (std::filesystem::exists(roboto, ec) &&
+      io.Fonts->AddFontFromFileTTF(roboto.string().c_str(), kFontSize)) {
+    return;
+  }
+  panel_log("Roboto not found in " + roboto.parent_path().string() +
+            "; using ImGui's default font");
+  ImFontConfig config;
+  config.SizePixels = kFontSize;
+  io.Fonts->AddFontDefault(&config);
 }
 
 } // namespace
@@ -155,54 +194,91 @@ void start_panel(const PanelConfig &config) {
   options.resizable = true;
   options.min_width = kMinWidth;
   options.min_height = kMinHeight;
-
-  int left = 0, top2 = 0, right = 0, bottom = 0;
-  XPLMGetScreenBoundsGlobal(&left, &top2, &right, &bottom);
-  int screen_w = right - left;
-  int screen_h = top2 - bottom;
-  int width = std::min(kOpenWidth, 
-                      std::max(screen_w - 80, kMinWidth));
-  int height = std::min(kOpenHeight,
-                       std::max(screen_h - 120, kMinHeight));
-  int x = left + (screen_w - width) / 2;
-  int y = top2 - (screen_h - height) / 2;
-
-  g_panel->window = std::make_unique<ImguiWindow>(
-      x, y, x + width, y - height, build_panel, options);
-
+  g_panel->window = std::make_unique<ImguiWindow>(0, kOpenHeight, kOpenWidth, 0,
+                                                  build_panel, options);
   if (!g_panel->window->valid()) {
-    panel_log("X-Plane did not create the panel window");
+    panel_log("X-Plane did not create the panel window (it needs X-Plane "
+              "12.4.4 or newer)");
     g_panel.reset();
     return;
   }
-
-  // Set up ImGui context for initial style.
   {
     ImGuiContext *previous = ImGui::GetCurrentContext();
-    if (!previous) {
-      // The window creation should have already set up the context.
-    } else {
-      ImGui::SetCurrentContext(previous);
-    }
+    ImGui::SetCurrentContext(g_panel->window->context());
+    load_font();
+    ImGui::GetStyle().FontSizeBase = kFontSize;
+    ImGui::SetCurrentContext(previous);
   }
+  g_panel->ui_scale = XPLMFindDataRef("sim/graphics/misc/user_interface_scale");
 
-  // Create a default PanelSession instance.
-  
+  load_view_state();
+
+  g_panel->command = XPLMCreateCommand(kPanelCommandName,
+                                       "zoal-briefing: Toggle the briefing panel");
+  XPLMRegisterCommandHandler(g_panel->command, toggle_handler, 1, nullptr);
   install_menu();
-  
-  panel_log("panel started");
+  panel_log("ready; open it with Plugins > zoal-briefing > Toggle Panel or bind " +
+            std::string(kPanelCommandName));
 }
 
 void stop_panel() {
   if (!g_panel) return;
-  
-  // Save any pending settings before destroying.
+  if (g_panel->menu) {
+    XPLMDestroyMenu(g_panel->menu);
+  }
+  if (g_panel->command) {
+    XPLMUnregisterCommandHandler(g_panel->command, toggle_handler, 1, nullptr);
+  }
+  g_panel->later.clear();
   g_panel->session.save_settings();
+  g_panel->window.reset();
   g_panel.reset();
 }
 
 void tick_panel() {
   if (!g_panel || !g_panel->window) return;
+
+  // What was pressed, outside the draw callback that saw it.
+  std::vector<std::function<void()>> later;
+  later.swap(g_panel->later);
+  for (const auto &action : later) {
+    action();
+  }
+
+  const gui::PanelViewResult last = std::exchange(g_panel->last, {});
+  if (last.close) {
+    set_shown(false);
+  }
+
+  // The window follows the mouse in global boxels while the background is
+  // held, since the window moving under it would make local coordinates useless.
+  if (g_panel->window->visible() && (last.drag_started || last.dragging)) {
+    int mx = 0, my = 0;
+    XPLMGetMouseLocationGlobal(&mx, &my);
+    int left = 0, top = 0, right = 0, bottom = 0;
+    g_panel->window->geometry(&left, &top, &right, &bottom);
+    if (last.drag_started || !g_panel->dragging) {
+      g_panel->dragging = true;
+      g_panel->drag_mouse_x = mx;
+      g_panel->drag_mouse_y = my;
+      g_panel->drag_left = left;
+      g_panel->drag_top = top;
+    } else {
+      const int x = g_panel->drag_left + (mx - g_panel->drag_mouse_x);
+      const int y = g_panel->drag_top + (my - g_panel->drag_mouse_y);
+      g_panel->window->set_geometry(x, y, x + (right - left), y - (top - bottom));
+    }
+  } else {
+    g_panel->dragging = false;
+  }
+
+  // Text is rasterized for the screen's real density: twice the UI scale keeps
+  // it sharp on a Retina screen and a scaled one alike.
+  float scale = 1.0f;
+  if (g_panel->ui_scale) {
+    scale = std::max(1.0f, XPLMGetDataf(g_panel->ui_scale));
+  }
+  g_panel->window->set_framebuffer_scale(2.0f * scale);
 }
 
 } // namespace zoal_briefing::xplane
