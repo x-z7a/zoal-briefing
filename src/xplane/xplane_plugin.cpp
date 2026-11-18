@@ -291,13 +291,13 @@ static bool ptt_command_handler(XPLMCommandRef cmd,
 }
 
 // ── Plugin Entry Point — X-Plane will call this ─────────────────────────────
-PLUGIN_API int XPluginStart() {
-    log_line("BriefingMaster loading...");
+PLUGIN_API int XPluginStart(char* outName, char* outSignature, char* outPayload) {
+    log_line("zoal-briefing loading...");
 
     // Initialize components.
     g_intent_parser = std::make_unique<IntentParser>();
     
-    // LLM bridge config (would be read from briefingmaster.json in production).
+    // LLM bridge config (would be read from zoal-briefing.json in production).
     BridgeConfig config;
     config.mode = BridgeConfig::Mode::AUTO;
     config.api.provider = "ollama";
@@ -337,22 +337,22 @@ PLUGIN_API int XPluginStart() {
     // Set initial state.
     get_plugin_state().set_current_icao("KSFO");
     
-    log_line("BriefingMaster loaded; bind command zoal_briefing/trigger");
+    log_line("zoal-briefing loaded; bind command zoal_briefing/trigger");
     return 1;
 }
 
 PLUGIN_API void XPluginStop() {
-    log_line("BriefingMaster unloaded");
+    log_line("zoal-briefing unloaded");
     
     // Cleanup: stop monitoring, release resources.
     g_simbrief_client.stop_monitoring();
 }
 
-PLUGIN_API int XPluginEnable() { 
-    log_line("BriefingMaster enabled");
+PLUGIN_API int XPluginEnable(void) { 
+    log_line("zoal-briefing enabled");
     return 1; 
 }
-PLUGIN_API void XPluginDisable() {}
+PLUGIN_API void XPluginDisable(void) {}
 
 PLUGIN_API void XPluginReceiveMessage(XPLMPluginID in_from, int message, 
                                        void *param) {

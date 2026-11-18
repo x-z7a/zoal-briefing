@@ -1,137 +1,82 @@
-# CI for BriefingMaster — X-Plane plugin build & unit tests
+# CI for zoal-briefing — X-Plane voice briefing plugin.
 name: CI
 
 on:
-  push:
-    branches: [main, develop]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
+  push:
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  CMAKE_GENERATOR: Ninja
   CMAKE_BUILD_TYPE: Release
-  ZOAL_BRIEFING_BUILD_TESTS: ON
 
 jobs:
-  # =========================================================================
-  # Unit tests — compiles and runs without X-Plane SDK headers
-  # =========================================================================
-  test:
-    name: Tests (${{ matrix.os }})
+  # =====================================================================
+  # build-test: SDK-free C++ core (all platforms, all three)
+  # =====================================================================
+  build-test:
+    name: Core (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-24.04, windows-latest]
-    runs-on: ${{ matrix.os }}
+        os: [ubuntu-24.04, macos-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure (tests only)
-        run: >
-          cmake -B build-test
-          -DZoalBriefing_BUILD_TESTS=ON
-          -DZoalBriefing_BUILD_PLUGIN=OFF
-          -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }}
+      # `make test` — what the release gate runs. CI must match the
+      # production command so Windows is exercised too (multi-config MSVC
+      # ignores CMAKE_BUILD_TYPE and needs --config).
+      - name: Install Windows build dependencies
+        if: runner.os == 'Windows'
+        run: choco install make -y
 
-      - name: Build tests
-        run: cmake --build build-test --config ${{ env.CMAKE_BUILD_TYPE }}
+      - name: Test
+        run: make test
 
-      - name: Run unit tests
-        run: |
-          cd build-test
-          ctest --output-on-failure \
-            -C ${{ env.CMAKE_BUILD_TYPE }} \
-            --gtest_filter="-performance*" 2>/dev/null || true
-
-      - name: Upload test logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs-${{ matrix.os }}
-          path: build-test/Testing/**/*
-
-  # =========================================================================
-  # Plugin build — requires X-Plane SDK headers.
-  # Now uses CMake-based download from X-Plane CDN (no git clone, no auth).
-  # Mirrors zoal-atc pattern with multi-platform coverage.
-  # =========================================================================
-  plugin:
+  # =====================================================================
+  # plugin-build: .xpl for every platform. Uses MinGW on Windows so the
+  # single-config generator respects CMAKE_BUILD_TYPE just like the release.
+  # =====================================================================
+  plugin-build:
     name: Plugin (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-24.04, windows-latest]
-    runs-on: ${{ matrix.os }}
+        os: [ubuntu-24.04, macos-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4
 
-      # On Windows, MinGW Makefiles give us a single-config generator that
-      # respects -DCMAKE_BUILD_TYPE (unlike MSVC which ignores it).
+      # The release build uses MinGW on Windows. Building MSVC here would
+      # leave the toolchain that actually ships proven only at tag time.
+      - name: Install Windows build dependencies
+        if: runner.os == 'Windows'
+        run: choco install make mingw -y
+
       - name: Add MinGW to PATH
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           "C:\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      - name: Configure plugin + tests (SDK auto-downloaded via CMake)
-        run: >
-          cmake -B build-plugin
-          -DZoalBriefing_BUILD_TESTS=ON
-          -DZoalBriefing_BUILD_PLUGIN=ON
-          -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }}
+      # The CMakeLists.txt auto-downloads the SDK from GitHub releases,
+      # so no separate download step is needed. This avoids auth failures
+      # that occur when git clone requires credentials for private repos.
+      - name: Build plugin
+        shell: bash
+        run: make plugin
 
-      - name: Build plugin + tests
-        run: cmake --build build-plugin --config ${{ env.CMAKE_BUILD_TYPE }}
-
-      - name: Upload .xpl artifact
+      - name: Upload plugin artifact
+        if: runner.os != 'Windows'  # Windows uploads handled separately
         uses: actions/upload-artifact@v4
         with:
-          name: zoal_briefing-${{ matrix.os }}.xpl
-          path: build-plugin/zoal_briefing.xpl
-          if-no-files-found: warn
+          name: zoal-briefing-${{ matrix.os }}-plugin
+          path: build-plugin/zoal-briefing.xpl
 
-  # =========================================================================
-  # Weekly SDK compatibility check — detects upstream breakages.
-  # Uses the ensure-sdk.sh script against fresh clone, then verifies CI
-  # still compiles against the latest SDK tree.
-  # =========================================================================
-  sdk-compat-check:
-    name: SDK Compat (weekly)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    schedule:
-      - cron: '0 6 * * 1'   # Mon 6am UTC
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Clone latest X-Plane SDK
-        run: |
-          git clone --depth 1 \
-            https://github.com/X-Plane/xpsdk.git xplane-sdk
-
-      - name: Build against latest SDK (using ensure-sdk.sh for CI)
-        run: |
-          # Point SDK script at our clone, then configure + build
-          ./scripts/ensure-sdk.sh $(pwd)/xplane-sdk
-
-          cmake -B build-ci \
-            -DZoalBriefing_BUILD_TESTS=ON \
-            -DZoalBriefing_XPLANE_SDK=$(pwd)/xplane-sdk \
-            -DCMAKE_BUILD_TYPE=Release
-
-      - name: Run tests against SDK
-        run: |
-          cd build-ci && ctest --output-on-failure 2>/dev/null || true
-
-      - name: Check SDK upstream diff
-        run: |
-          cd xplane-sdk
-          echo "### Last 5 SDK commits" >> $GITHUB_STEP_SUMMARY
-          git log --oneline -5 >> $GITHUB_STEP_SUMMARY || true

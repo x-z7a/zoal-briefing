@@ -7,7 +7,7 @@ namespace zoal_briefing::bridge {
 
 void LLMRouter::load_config(const std::string& config_path) {
     std::lock_guard<std::mutex> lock(mtx_);
-    // In production, parse briefingmaster.json using nlohmann/json
+    // In production, parse zoal-briefing.json using nlohmann/json
     // For scaffolding, we rely on defaults or a simple reader
     std::ifstream file(config_path);
     if (file.is_open()) {
