@@ -1,0 +1,32 @@
+# Build artifacts
+build-plugin/
+build-test/
+*.o
+*.a
+*.so
+*.xpl
+*.dll
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Models (download separately)
+model/whisper/*.bin
+model/openwakeword/*.onnx
+model/piper/*.onnx
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
