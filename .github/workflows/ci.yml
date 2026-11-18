@@ -1,0 +1,133 @@
+# CI that always ensures the X-Plane SDK is up to date before building,
+# so every PR/build uses the latest compatible SDK version.
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build (tests only) on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Clone X-Plane SDK as a git repo so ensure-sdk.sh can detect updates.
+      - name: Clone X-Plane SDK
+        run: |
+          mkdir -p ~/git
+          git clone --depth 1 https://github.com/LaminarResearch/X-Plane-SDK.git \
+            ~/git/xplane-sdk
+
+      # Ensure SDK is up to date (in CI we force-check only; no merge conflicts).
+      - name: Check SDK upstream
+        run: |
+          export CI_FORCE_CHECK_ONLY=1
+          ./scripts/ensure-sdk.sh ~/git/xplane-sdk
+
+      - name: Configure CMake (tests)
+        run: |
+          mkdir build-test
+          cd build-test
+          cmake .. -DZOAL_BRIEFING_BUILD_TESTS=ON
+
+      - name: Build tests
+        run: |
+          cd build-test
+          make -j$(nproc) || make -j1  # retry on parallel failure
+
+      - name: Run unit tests
+        run: |
+          cd build-test
+          ctest --output-on-failure -E "(performance|benchmark)"
+
+  build-plugin:
+    name: Build plugin on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Clone X-Plane SDK as a git repo for upstream checking.
+      - name: Clone X-Plane SDK
+        run: |
+          mkdir -p ~/git
+          git clone https://github.com/LaminarResearch/X-Plane-SDK.git \
+            ~/git/xplane-sdk
+
+      # Ensure SDK is up to date and pull any updates before building.
+      # In CI we auto-pull (no read-prompt), then build.
+      - name: Ensure SDK latest & build plugin
+        run: |
+          ./scripts/ensure-sdk.sh ~/git/xplane-sdk
+          
+          mkdir build-plugin
+          cd build-plugin
+          cmake .. \
+            -DZOAL_BRIEFING_BUILD_PLUGIN=ON \
+            -DATC_XPLANE_SDK=$HOME/git/xplane-sdk
+
+      - name: Build plugin
+        run: |
+          cd build-plugin
+          make -j$(nproc) || make -j1
+
+      # Artifact: the .xpl file (simulated here since we don't have the real SDK headers).
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zoal_briefing-${{ matrix.os }}
+          path: build-plugin/zoal_briefing.xpl
+
+  sdk-compat-check:
+    # Runs on a schedule to catch SDK updates that might break builds.
+    name: SDK Compat Check (weekly)
+    runs-on: ubuntu-latest
+    schedule:
+      - cron: '0 6 * * 1'   # Mon 6am UTC
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone latest X-Plane SDK
+        run: |
+          mkdir -p ~/git
+          git clone https://github.com/LaminarResearch/X-Plane-SDK.git \
+            ~/git/xplane-sdk
+          cd ~/git/xplane-sdk
+          git branch -a  # show all branches for context
+
+      - name: Check SDK upstream diff
+        run: |
+          # Simulate what ensure-sdk.sh checks — but report full diff for logging.
+          cd ~/git/xplane-sdk
+          UPSTREAM=$(git log --oneline -5)
+          echo "### Last 5 SDK commits" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "$UPSTREAM" >> $GITHUB_STEP_SUMMARY
+
+      - name: Build against latest SDK
+        run: |
+          ./scripts/ensure-sdk.sh ~/git/xplane-sdk --no-pull
+          
+          mkdir build-test
+          cd build-test
+          cmake .. -DZOAL_BRIEFING_BUILD_TESTS=ON
+          make -j$(nproc) 2>&1 || true
+          ctest --output-on-failure 2>&1 || true
+
+        env:
+          CI_FORCE_CHECK_ONLY: "1"

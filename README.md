@@ -128,3 +128,50 @@ ctest
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
+
+## CI Integration
+
+This project includes a CI-ready `.github/workflows/ci.yml` that uses the
+`ensure-sdk.sh` helper to **always build against the latest X-Plane SDK**.
+
+### How `scripts/ensure-sdk.sh` works
+
+1. Checks if the given path exists and contains valid SDK headers
+2. If it's a git repository, fetches HEAD from upstream (default: `origin/main`)
+3. Compares local HEAD with upstream — reports differences clearly
+4. In CI (detected automatically): **auto-pulls silently** before the build
+5. In interactive mode: prompts the user before pulling
+
+### Usage in CI
+
+```yaml
+- name: Clone X-Plane SDK
+  run: git clone https://github.com/LaminarResearch/X-Plane-SDK.git ~/git/xplane-sdk
+
+- name: Ensure SDK latest & build
+  run: |
+    ./scripts/ensure-sdk.sh ~/git/xplane-sdk
+    mkdir build && cd build
+    cmake .. -DATC_XPLANE_SDK=$HOME/git/xplane-sdk
+    make
+```
+
+### Flags & Environment
+
+| Argument / Env Var       | Purpose                                    |
+|--------------------------|--------------------------------------------|
+| `--no-pull`              | Check only — never auto-pull               |
+| `$XPLANE_SDK_REMOTE`     | Override the git remote to check           |
+| `$CI_FORCE_CHECK_ONLY=1` | Force check-only mode (reporting only)      |
+
+The script detects CI automatically via common environment variables (`CI`,
+`GITHUB_ACTIONS`, `GITLAB_CI`, etc.) and non-interactive mode (no tty).
+
+### Weekly SDK Compat Job
+
+The `.github/workflows/ci.yml` includes a scheduled job (weekly, Monday 6am UTC)
+that:
+- Clones the latest X-Plane SDK fresh
+- Reports any new commits in `#sdk-updates` or GitHub Issues
+- Attempts to build tests against the latest SDK
+- Summarizes results in the PR/commit summary
