@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+struct ImFont;
+
 namespace zoal_briefing::gui {
 
 // --- panel result --------------------------------------------------------------
@@ -54,6 +56,8 @@ struct PanelFrame {
   int64_t wall_ms = 0;
   // Deferred actions (rendered after the next draw call).
   std::vector<std::function<void()>> *later = nullptr;
+  // The semibold weight for headings; nullptr uses the default font.
+  ImFont *title_font = nullptr;
 };
 
 // Draws one frame of the briefing panel. Returns true when a tab change or

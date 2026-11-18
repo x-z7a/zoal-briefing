@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "imgui.h"
+#include "imgui_freetype.h"
 #include "zoal_briefing/gui/panel_session.hpp"
 #include "zoal_briefing/gui/panel_view.hpp"
 
@@ -36,13 +37,16 @@ constexpr int kOpenWidth = 720;
 constexpr int kOpenHeight = 520;
 constexpr int kMinWidth = 520;
 constexpr int kMinHeight = 360;
-constexpr float kFontSize = 15.0f;
+// CSS sizes a font by its em, ImGui by its whole line: Inter's line is 1.21
+// ems (Roboto's 1.17), so this draws what CSS's 14px does -- as zoal-atc.
+constexpr float kFontSize = 14.0f * 1.21f;
 
 struct Panel {
   std::unique_ptr<ImguiWindow> window;
   gui::PanelSession session;
   gui::PanelViewState view_state;
   std::string version;
+  ImFont *title_font = nullptr;
   // Presses from the last frame, run from the flight loop.
   std::vector<std::function<void()>> later;
   gui::PanelViewResult last;
@@ -109,6 +113,7 @@ void build_panel() {
   frame.steady_ms = steady_now();
   frame.wall_ms = wall_now();
   frame.later = &g_panel->later;
+  frame.title_font = g_panel->title_font;
   g_panel->last = gui::draw_panel(g_panel->session, g_panel->view_state, frame);
 }
 
@@ -161,24 +166,53 @@ void install_menu() {
   XPLMAppendMenuItemWithCommand(g_panel->menu, "Toggle Panel", g_panel->command);
 }
 
-// X-Plane's own UI face, on every install; ImGui's built-in font otherwise.
-void load_font() {
+// The plugin's own folder: <plugins>/zoal-briefing/<platform>/zoal-briefing.xpl.
+std::filesystem::path plugin_dir() {
+  char binary[1024] = {};
+  XPLMGetPluginInfo(XPLMGetMyID(), nullptr, binary, nullptr, nullptr);
+  return std::filesystem::path(binary).parent_path().parent_path();
+}
+
+std::filesystem::path xplane_fonts_dir() {
   char system_path[1024] = {};
   XPLMGetSystemPath(system_path);
-  const std::filesystem::path roboto = std::filesystem::path(system_path) /
-                                       "Resources" / "fonts" /
-                                       "Roboto-Regular.ttf";
+  return std::filesystem::path(system_path) / "Resources" / "fonts";
+}
+
+// Inter, shipped in the plugin's fonts/ (the face zoal-atc's panel is set in),
+// rasterized by FreeType with light hinting. Roboto, X-Plane's own UI face, is
+// on every install; it has no semibold, so bold stands in.
+void load_fonts() {
   ImGuiIO &io = ImGui::GetIO();
+  // Light hinting snaps stems and baselines to whole pixels vertically, so
+  // small text is crisp, while letter spacing keeps the font's own widths.
+  io.Fonts->FontLoaderFlags = ImGuiFreeTypeLoaderFlags_LightHinting;
+
+  const std::filesystem::path inter = plugin_dir() / "fonts";
+  const std::filesystem::path roboto = xplane_fonts_dir();
   std::error_code ec;
-  if (std::filesystem::exists(roboto, ec) &&
-      io.Fonts->AddFontFromFileTTF(roboto.string().c_str(), kFontSize)) {
-    return;
+  std::filesystem::path regular = inter / "Inter-Regular.ttf";
+  std::filesystem::path semibold = inter / "Inter-SemiBold.ttf";
+  if (!std::filesystem::exists(regular, ec)) {
+    panel_log("no Inter in " + inter.string() + "; using X-Plane's Roboto");
+    regular = roboto / "Roboto-Regular.ttf";
+    semibold = roboto / "Roboto-Bold.ttf";
   }
-  panel_log("Roboto not found in " + roboto.parent_path().string() +
-            "; using ImGui's default font");
-  ImFontConfig config;
-  config.SizePixels = kFontSize;
-  io.Fonts->AddFontDefault(&config);
+
+  // The first font added is the default. The size is only that: ImGui 1.92
+  // rasterizes each size asked for.
+  ImFont *body = nullptr;
+  if (std::filesystem::exists(regular, ec)) {
+    body = io.Fonts->AddFontFromFileTTF(regular.string().c_str(), kFontSize);
+  }
+  if (!body) {
+    panel_log("could not load " + regular.string() + "; using ImGui's built-in font");
+    io.Fonts->AddFontDefault();
+  }
+  if (std::filesystem::exists(semibold, ec)) {
+    g_panel->title_font =
+        io.Fonts->AddFontFromFileTTF(semibold.string().c_str(), kFontSize);
+  }
 }
 
 } // namespace
@@ -205,7 +239,7 @@ void start_panel(const PanelConfig &config) {
   {
     ImGuiContext *previous = ImGui::GetCurrentContext();
     ImGui::SetCurrentContext(g_panel->window->context());
-    load_font();
+    load_fonts();
     ImGui::GetStyle().FontSizeBase = kFontSize;
     ImGui::SetCurrentContext(previous);
   }

@@ -16,6 +16,15 @@ BUILD_TYPE ?= Release
 # goes in its platform subfolder, as in zoal-atc: zoal-briefing/mac_x64/zoal-briefing.xpl.
 LOCAL_XPLANE_PLUGIN_DIR ?= $(HOME)/X-Plane 12/Resources/plugins/zoal-briefing
 
+# FreeType, which rasterizes the panel's text with hinting, and Inter, the
+# typeface it is set in -- both as in zoal-atc, pinned with their archive
+# checksums in scripts/*-version.txt and downloaded once into .cache.
+FREETYPE_VERSION := $(shell cut -d' ' -f1 "$(ROOT_DIR)/scripts/freetype-version.txt")
+ZOAL_BRIEFING_FREETYPE_SOURCE ?= $(ROOT_DIR)/.cache/freetype-$(FREETYPE_VERSION)
+INTER_VERSION := $(shell cut -d' ' -f1 "$(ROOT_DIR)/scripts/inter-version.txt")
+ZOAL_BRIEFING_INTER ?= $(ROOT_DIR)/.cache/inter-$(INTER_VERSION)
+INTER_WEIGHTS := Inter-Regular.ttf Inter-SemiBold.ttf Inter-Bold.ttf
+
 PLUGIN_XPL := $(PLUGIN_BUILD_DIR)/zoal-briefing.xpl
 
 UNAME_S := $(shell uname -s)
@@ -50,7 +59,7 @@ else
 CMAKE_GENERATOR :=
 endif
 
-.PHONY: help test plugin install install-plugin release clean
+.PHONY: help test plugin freetype fonts install install-plugin release clean
 
 .DEFAULT_GOAL := help
 
@@ -78,12 +87,19 @@ else
 	cmake --build "$(BUILD_DIR)"
 endif
 
+freetype:
+	ZOAL_BRIEFING_FREETYPE_SOURCE="$(ZOAL_BRIEFING_FREETYPE_SOURCE)" "$(ROOT_DIR)/scripts/ensure-freetype.sh"
+
+fonts:
+	ZOAL_BRIEFING_INTER="$(ZOAL_BRIEFING_INTER)" "$(ROOT_DIR)/scripts/ensure-inter.sh"
+
 # Build plugin (fetches X-Plane SDK from GitHub releases automatically)
-plugin:
+plugin: freetype
 	@echo ">>> Building zoal-briefing .xpl plugin..."
 	cmake -S . -B "$(PLUGIN_BUILD_DIR)" $(CMAKE_GENERATOR) \
 		-DZoalBriefing_BUILD_TESTS=OFF \
 		-DZoalBriefing_BUILD_PLUGIN=ON \
+		-DZoalBriefing_FREETYPE_SOURCE="$(ZOAL_BRIEFING_FREETYPE_SOURCE)" \
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
 ifeq ($(OS),Windows_NT)
 	cmake --build "$(PLUGIN_BUILD_DIR)" --config $(BUILD_TYPE)
@@ -99,7 +115,7 @@ endif
 
 install: install-plugin
 
-install-plugin: plugin
+install-plugin: plugin fonts
 	@plugins_dir="$$(dirname "$(LOCAL_XPLANE_PLUGIN_DIR)")"; \
 	if [ ! -d "$$plugins_dir" ]; then \
 		echo "no X-Plane plugins folder at $$plugins_dir" >&2; \
@@ -109,16 +125,21 @@ install-plugin: plugin
 	rm -rf "$(LOCAL_XPLANE_PLUGIN_DIR)"
 	mkdir -p "$(LOCAL_XPLANE_PLUGIN_DIR)/$(PLUGIN_PLATFORM_DIR)"
 	cp "$(PLUGIN_XPL)" "$(LOCAL_XPLANE_PLUGIN_DIR)/$(PLUGIN_PLATFORM_DIR)/zoal-briefing.xpl"
+	mkdir -p "$(LOCAL_XPLANE_PLUGIN_DIR)/fonts" "$(LOCAL_XPLANE_PLUGIN_DIR)/licenses/inter"
+	for weight in $(INTER_WEIGHTS); do cp "$(ZOAL_BRIEFING_INTER)/$$weight" "$(LOCAL_XPLANE_PLUGIN_DIR)/fonts/"; done
+	cp "$(ZOAL_BRIEFING_INTER)/LICENSE.txt" "$(LOCAL_XPLANE_PLUGIN_DIR)/licenses/inter/LICENSE.txt"
 	@echo "installed into $(LOCAL_XPLANE_PLUGIN_DIR)/$(PLUGIN_PLATFORM_DIR)"
 
 # Assemble release tree in dist/zoal-briefing (includes README).
-release: plugin
+release: plugin fonts
 	rm -rf "$(RELEASE_DIR)"
-	mkdir -p "$(RELEASE_DIR)"
-	cp "$(PLUGIN_XPL)" "$(RELEASE_DIR)/"
+	mkdir -p "$(RELEASE_DIR)/$(PLUGIN_PLATFORM_DIR)" "$(RELEASE_DIR)/fonts" "$(RELEASE_DIR)/licenses/inter"
+	cp "$(PLUGIN_XPL)" "$(RELEASE_DIR)/$(PLUGIN_PLATFORM_DIR)/zoal-briefing.xpl"
+	for weight in $(INTER_WEIGHTS); do cp "$(ZOAL_BRIEFING_INTER)/$$weight" "$(RELEASE_DIR)/fonts/"; done
+	cp "$(ZOAL_BRIEFING_INTER)/LICENSE.txt" "$(RELEASE_DIR)/licenses/inter/LICENSE.txt"
 	printf '%s\n' \
 	  'zoal-briefing — voice briefing plugin for X-Plane' '' \
-	  '1. Copy zoal-briefing.xpl into X-Plane 12/Resources/plugins/' '' \
+	  '1. Drop this zoal-briefing folder into X-Plane 12/Resources/plugins/' '' \
 	  'Requires: X-Plane 12.4+ SDK (xpsdk_4.4.0-r2)' > "$(RELEASE_DIR)/README.txt"
 	@echo "Release assembled in $(RELEASE_DIR)"
 

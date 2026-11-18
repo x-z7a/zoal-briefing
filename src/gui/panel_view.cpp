@@ -195,7 +195,7 @@ void draw_mast(const Palette &p, const PanelSession &session,
   ImDrawList *draw = ImGui::GetWindowDrawList();
   const ImVec2 origin = ImGui::GetCursorScreenPos();
 
-  ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * 1.2f);
+  ImGui::PushFont(frame.title_font, ImGui::GetStyle().FontSizeBase * 1.2f);
   const float title_h = ImGui::GetTextLineHeight();
   draw->AddText(ImVec2(origin.x, origin.y + (kMastHeight - title_h) * 0.5f),
                 p.text, "zoal-briefing");

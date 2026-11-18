@@ -32,6 +32,10 @@ static float flight_loop(float, float, int, void*) {
 PLUGIN_API int XPluginStart(char* outName, char* outSignature, char* outPayload) {
     XPLMDebugString("[zoal-briefing] loading...\n");
 
+    // POSIX paths from the SDK (as zoal-atc): without this a Mac gets HFS paths
+    // ("Macintosh HD:Users:...") and the panel cannot open its fonts.
+    XPLMEnableFeature("XPLM_USE_NATIVE_PATHS", 1);
+
     auto& state = get_plugin_state();
     state.set_current_icao("KSFO");
     state.set_llm_available(true);

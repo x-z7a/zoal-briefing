@@ -14,6 +14,7 @@ option(ZoalBriefing_BUILD_TESTS    "Build unit tests (SDK-free)"   ON)
 option(ZoalBriefing_BUILD_PLUGIN   "Build X-Plane .xpl plugin"     OFF)
 
 set(ZoalBriefing_XPLANE_SDK "" CACHE PATH "Path to the X-Plane SDK root")
+set(ZoalBriefing_FREETYPE_SOURCE "" CACHE PATH "FreeType source tree (see scripts/ensure-freetype.sh)")
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/XPlaneSDK.cmake)
 
@@ -39,6 +40,30 @@ target_compile_definitions(zoal_briefing_imgui PUBLIC
 )
 
 set_target_properties(zoal_briefing_imgui PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# FreeType rasterizes the panel's text hinted to the pixel grid, as in zoal-atc:
+# stb_truetype, the default, leaves small UI text thin and soft. Built from
+# source with every optional dependency off, so it needs nothing from the
+# system. Required for the plugin; the SDK-free tests do not draw text.
+if(ZoalBriefing_BUILD_PLUGIN)
+    if(NOT EXISTS "${ZoalBriefing_FREETYPE_SOURCE}/include/ft2build.h")
+        message(FATAL_ERROR "FreeType source not found at '${ZoalBriefing_FREETYPE_SOURCE}'. "
+            "Run scripts/ensure-freetype.sh (make plugin does).")
+    endif()
+    foreach(_ft_dependency ZLIB BZIP2 PNG HARFBUZZ BROTLI)
+        set(FT_DISABLE_${_ft_dependency} ON CACHE BOOL "" FORCE)
+    endforeach()
+    set(SKIP_INSTALL_ALL ON CACHE BOOL "" FORCE)
+    add_subdirectory("${ZoalBriefing_FREETYPE_SOURCE}" "${CMAKE_BINARY_DIR}/freetype" EXCLUDE_FROM_ALL)
+    set_target_properties(freetype PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+    target_sources(zoal_briefing_imgui PRIVATE
+        "${ZOAL_BRIEFING_IMGUI_SOURCE}/misc/freetype/imgui_freetype.cpp")
+    target_include_directories(zoal_briefing_imgui SYSTEM PUBLIC
+        "${ZOAL_BRIEFING_IMGUI_SOURCE}/misc/freetype")
+    target_compile_definitions(zoal_briefing_imgui PUBLIC IMGUI_ENABLE_FREETYPE)
+    target_link_libraries(zoal_briefing_imgui PUBLIC freetype)
+endif()
 
 # ── core library (SDK-free, builds on all platforms) ──────────────────────────
 add_library(zoal_briefing_core STATIC
