@@ -3,6 +3,8 @@
 
 #include <string>
 #include <unordered_map>
+#include <optional>
+#include <vector>
 
 namespace zoal_briefing::intent {
 
@@ -15,8 +17,16 @@ public:
     // Score the transcript against all keywords. Return the best match.
     int score(const std::string& transcript) const;
 
+    // Get all matching keywords for a transcript.
+    std::vector<std::string> get_matches(const std::string& transcript) const;
+
 private:
-    std::unordered_map<std::string, int> keyword_map_;
+    struct KeywordEntry {
+        std::string word;
+        int type_code;
+        int weight;  // For scoring (weather keywords may have higher weight).
+    };
+    std::vector<KeywordEntry> keywords_;
 };
 
 } // namespace zoal_briefing::intent

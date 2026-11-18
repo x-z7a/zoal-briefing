@@ -1,0 +1,27 @@
+{
+  "llm_bridge": {
+    "mode": "auto",
+    "api": {
+      "provider": "ollama",
+      "endpoint": "http://localhost:11434/v1/chat/completions",
+      "model": "qwen3.6:35b-a3b"
+    },
+    "cli": {
+      "provider": "claude",
+      "command": "claude --output-format json",
+      "prompt_template_path": "./prompts/cli_briefing.txt"
+    }
+  },
+  "cache": {
+    "xplane_version_key": "xplane_v12_5",
+    "apt_dat_cache_dir": "~/.briefingmaster/cache/apt_dat",
+    "grib_cache_dir": "~/.briefingmaster/cache/grib",
+    "auto_refresh_minutes": 30
+  },
+  "audio": {
+    "wake_word": "cookie_monster",
+    "stt_model": "base.en",
+    "tts_engine": "piper",
+    "fallback_voice": "en_US-celt_1024mb"
+  }
+}

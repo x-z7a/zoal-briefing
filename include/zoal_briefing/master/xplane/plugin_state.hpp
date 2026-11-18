@@ -3,6 +3,7 @@
 
 #include <string>
 #include <mutex>
+#include <atomic>
 
 namespace zoal_briefing::xplane {
 
@@ -21,11 +22,25 @@ public:
     bool llm_available() const;
     void set_llm_available(bool available);
 
+    // Current flight plan info.
+    std::string origin_icao() const;
+    void set_origin_icao(const std::string& icao);
+    
+    std::string dest_icao() const;
+    void set_dest_icao(const std::string& icao);
+
+    // Plugin lifecycle state.
+    bool is_ready() const;
+    void set_ready(bool ready);
+
 private:
+    mutable std::mutex mutex_;
     std::string current_icao_;
     std::string active_briefing_;
-    bool llm_available_{true};
-    mutable std::mutex mutex_;
+    std::string origin_icao_;
+    std::string dest_icao_;
+    std::atomic<bool> llm_available_{true};
+    std::atomic<bool> is_ready_{false};
 };
 
 // Global singleton.

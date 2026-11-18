@@ -1,66 +1,59 @@
-#ifndef ZOAL_BRIEFING_LLM_BRIDGE_HPP
-#define ZOAL_BRIEFING_LLM_BRIDGE_HPP
+#pragma once
 
 #include <string>
-#include <optional>
 #include <functional>
+#include <memory>
+#include <mutex>
 
-namespace zoal_briefing::llm {
+namespace zoal_briefing::bridge {
 
-// The routing modes for LLM bridge:
-enum class Mode {
-    API,  // HTTP/REST to OpenAI/Anthropic/Ollama/LM Studio
-    CLI,  // Process spawn to Claude/Copilot/Codex via stdin/stdout
-    AUTO  // Auto-detect based on config/availability
+enum class ProviderMode {
+    API_MODE, // OpenAI / Anthropic / Ollama (REST)
+    CLI_MODE, // Claude / Copilot / Codex (CLI execution)
+    AUTO      // Health check -> API -> CLI -> Fallback
 };
 
-struct BridgeConfig {
-    Mode mode = Mode::AUTO;
+struct LLMConfig {
+    std::string mode = "AUTO"; // "API", "CLI", "AUTO"
     
-    // API mode settings
-    struct ApiSettings {
-        std::string provider = "ollama";       // openai, anthropic, ollama, lm_studio
-        std::string endpoint;                  // e.g., http://localhost:11434/v1/chat/completions
+    struct APIConfig {
+        std::string provider = "Ollama";
+        std::string endpoint = "http://localhost:11434/v1/chat/completions";
         std::string model = "qwen3.6:35b-a3b";
-        std::string api_key;                   // from OS keychain or encrypted file
+        std::string api_key = ""; // Loaded from OS keychain / env
     } api;
-
-    // CLI mode settings
-    struct CliSettings {
-        std::string provider = "claude";      // claude, copilot, codex, custom
-        std::string command;                  // e.g., "claude --output-format json"
-        std::vector<std::string> env_tokens;  // env var names for API keys
-        std::string prompt_template_path;     // ./prompts/cli_briefing.txt
+    
+    struct CLIConfig {
+        std::string provider = "Claude"; // or "codex", "custom"
+        std::string command = "claude --output-format json";
+        std::string prompt_template_path = "./prompts/cli_briefing.txt";
+        std::vector<std::string> env_tokens = {"ANTHROPIC_API_KEY"};
     } cli;
-
-    // Fallback settings
-    struct FallbackSettings {
-        double timeout_seconds = 5.0;
-        int max_retries = 2;
-    } fallback;
 };
 
-// The LLM bridge router — selects API vs CLI, routes the prompt, returns briefing text.
-class LlmBridge {
+class LLMRouter {
 public:
-    explicit LlmBridge(const BridgeConfig& config);
-
-    // Generate a structured briefing for a given input.
-    using BriefingCallback = std::function<void(const std::string& result, 
-                                                 const std::string& error)>;
+    LLMRouter() = default;
     
-    void generate(const std::string& system_prompt,
-                  const std::string& user_input,
-                  BriefingCallback cb);
-
-    // Get current mode (after auto-detection).
-    Mode current_mode() const;
+    void load_config(const std::string& config_path);
+    
+    using ResultCallback = std::function<void(bool success, const std::string& briefing_text)>;
+    
+    void generate_briefing(const std::string& system_prompt,
+                           const std::string& user_context,
+                           ResultCallback cb);
 
 private:
-    BridgeConfig config_;
-    Mode detected_mode_{Mode::AUTO};
+    LLMConfig config_;
+    mutable std::mutex mtx_;
+    
+    // Internal routing & fallback chain
+    bool is_api_available() const;
+    bool is_cli_available() const;
+    
+    void call_api(const std::string& system_prompt, const std::string& user_context, ResultCallback cb);
+    void call_cli(const std::string& system_prompt, const std::string& user_context, ResultCallback cb);
+    void use_cached_fallback(const std::string& system_prompt, ResultCallback cb);
 };
 
-} // namespace zoal_briefing::llm
-
-#endif // ZOAL_BRIEFING_LLM_BRIDGE_HPP
+} // namespace zoal_briefing::bridge

@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <optional>
 
 namespace zoal_briefing::nav {
 
@@ -36,8 +37,8 @@ struct STARProcedure {
 class SidStarCache {
 public:
     void load(const std::string& airport_code, 
-              const std::vector<sid_star::SIDProcedure>& sids,
-              const std::vector<sid_star::STARProcedure>& stars);
+              const std::vector<SIDProcedure>& sids,
+              const std::vector<STARProcedure>& stars);
     
     std::optional<SIDProcedure> get_sid(const std::string& runway) const;
     std::optional<STARProcedure> get_star(const std::string& runway) const;

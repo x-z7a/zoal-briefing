@@ -4,6 +4,9 @@
 #include <string>
 #include <optional>
 #include <vector>
+#include <functional>
+#include <thread>
+#include <chrono>
 
 namespace zoal_briefing::llm {
 
@@ -12,18 +15,24 @@ namespace zoal_briefing::llm {
 class FallbackChain {
 public:
     // Try each step in sequence until one succeeds.
+    using Runnable = std::function<std::optional<std::string>()>;
+    
     struct Step {
         std::string name;
-        std::function<std::optional<std::string>()> runnable;
+        Runnable runnable;
     };
 
     void add_step(const Step& step);
     
     // Run the chain, returning the first non-empty result or nullopt if all fail.
     std::optional<std::string> run();
+    
+    // Run the chain with a timeout (returns early if any step succeeds).
+    std::optional<std::string> run_with_timeout(double timeout_seconds = 5.0);
 
 private:
     std::vector<Step> steps_;
+    bool interrupted_ = false;
 };
 
 } // namespace zoal_briefing::llm

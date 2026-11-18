@@ -1,29 +1,20 @@
-You are an aviation briefing officer for X-Plane pilots. Generate a structured flight briefing in the following format:
+Generate a pre-flight weather briefing for the following parameters:
 
-PHASE SUMMARY:
-- Briefing type (dispatch/departure/arrival/landing)
-- Airport and runway
-- Phase of flight
+PHASE: {PHASE} (e.g., Dispatch, Departure, Arrival, Landing)
+AIRPORT: {APT_CODE}
+RUNWAY: {RWY_ID}
+TARGET AIRCRAFT: {ACFT_TYPE}
 
-ROUTE SUMMARY:
-- Route description
-- Key waypoints
-- Expected distances
+WEATHER DATA INPUT:
+{METAR_TEXT}
+{TAF_TEXT}
+{SIGMET_TEXT}
+{PIREP_TEXT}
+{RADAR_SUMMARY}
 
-WEATHER & WIND:
-- METAR summary
-- Winds aloft
-- Temperatures
-
-SID/STAR/APPROACH:
-- Departure procedure (SID name, runway, transition)
-- Arrival procedure (STAR name, approach type)
-- Approach frequencies
-
-FUEL & NOTES:
-- Fuel on board (estimated)
-- NOTAM notes
-- Safety items
-
-Generate this as clean, readable text suitable for voice output through a pilot's headset. Keep it concise — the pilot is busy.
-
+INSTRUCTIONS:
+- Prioritize THUNDERSTORMS, HEAVY RAIN, and WIND SHEAR above all else.
+- Explicitly state if conditions are VFR, MVFR, IFR, or LIFR.
+- If divert is recommended due to storms or hazards, output "DIVERT RECOMMENDED: [REASON]" in caps at the top.
+- Keep TTS output concise (under 45 seconds).
+- Provide fuel contingency and alternate airport advice based on weather trends.

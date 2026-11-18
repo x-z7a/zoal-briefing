@@ -1,63 +1,90 @@
-#ifndef ZOAL_BRIEFING_WEATHER_HPP
-#define ZOAL_BRIEFING_WEATHER_HPP
+#pragma once
 
 #include <string>
 #include <vector>
-#include <cstdint>
 #include <optional>
 
 namespace zoal_briefing::wx {
 
-struct WindProfile {
-    double pressure_alt_ft;
-    double wind_dir_deg;
-    double wind_speed_kt;
-    double temp_c;
-};
+enum class FlightCategory { VFR, MVFR, IFR, LIFR, UNKNOWN };
+enum class Severity { LOW, MODERATE, SEVERE, CRITICAL };
 
 struct METARData {
-    std::string raw;
     std::string station;
-    double vis_statute_mi{};
-    int wind_dir_deg{};
-    int wind_speed_kt{};
-    int wind_gust_kt{};
-    char visibility_var[5] = {}; // e.g., "V04" 
-    int ceiling_ft{};
-    std::string weather_codes;   // "+RASG TSRA"
-    char runway_visual_range[1024] = {};
-    std::vector<std::string> clouds; // "FEW020 BKN040"
-    std::string temp_c;
-    std::string dewpoint_c;
-    double altimeter_inhg{};
+    int wind_speed_kt = 0;
+    std::string visibility_statute_mi = "";
+    std::vector<std::string> weather_codes; // e.g., "+TSRA", "BR", "FG"
+    double temperature_c = 0.0;
+    double dewpoint_c = 0.0;
+    double altimeter_inhg = 29.92;
 };
 
-class GRIBParser {
-public:
-    void parse_all(const std::string& grib_dir);
-    std::vector<WindProfile> get_winds_for(const std::string& icao, 
-                                          double lat, double lon) const;
-private:
-    std::unordered_map<std::string, std::vector<WindProfile>> winds_;
+struct TAFData {
+    std::string station;
+    struct TimeGroup {
+        std::string valid_from;
+        std::string valid_to;
+        int wind_speed_kt = 0;
+        std::vector<std::string> weather_codes;
+    };
+    std::vector<TimeGroup> periods;
 };
 
-class METARWorker {
-public:
-    METARWorker(const std::string& xplane_data_dir);
+struct SIGMETData {
+    std::string id;
+    std::string issuing_station;
+    std::string text;
+    Severity severity = Severity::MODERATE;
+};
 
-    // Fetch current METAR for a station (async HTTP).
-    void fetch_metar(const std::string& icao);
-    
-    // Get the latest parsed METAR.
-    std::optional<METARData> get_latest() const;
-    
-    // Parse raw METAR string into struct.
-    static METARData parse(const std::string& metar_text);
+struct PIREPData {
+    std::string location;
+    std::string altitude_fl;
+    std::string turbulence_type; // e.g., "MOD", "SEV"
+    std::string icing_type;      // e.g., "TRACE", "LIGHT RIME"
+    std::string wind_dir_deg_t;
+};
 
-private:
-    std::optional<METARData> cached_metar_;
+struct RadarObservation {
+    std::string source; // e.g., NEXRAD
+    struct Cell {
+        float lat = 0.0;
+        float lon = 0.0;
+        float intensity_dbz = 0.0; // Rain/Storm intensity
+        float max_ebzh = 0.0;      // Max Echo Height
+    };
+    std::vector<Cell> cells;
+};
+
+struct WeatherSummary {
+    METARData metar;
+    TAFData taf;
+    std::vector<SIGMETData> sigmets;
+    std::vector<PIREPData> pireps;
+    RadarObservation radar;
+    
+    FlightCategory flight_category = FlightCategory::UNKNOWN;
+    bool has_thunderstorms = false;
+    bool has_heavy_rain = false;
+    bool is_hazardous = false;
+    double divert_probability = 0.0; // 0.0 to 1.0
+    
+    // --- Priority Helpers for Briefing ---
+    bool should_divert() const {
+        if (is_hazardous && divert_probability > 0.75) return true;
+        if (has_thunderstorms && metar.wind_speed_kt > 30) return true;
+        if (std::any_of(sigmets.begin(), sigmets.end(), [](const SIGMETData& s){ return s.severity == Severity::CRITICAL; })) return true;
+        return false;
+    }
+    
+    std::string get_rain_intensity_label() const {
+        if (has_heavy_rain) return "HEAVY_RAIN";
+        for (const auto& code : metar.weather_codes) {
+            if (code.find("RA") != std::string::npos && code[0] == '+') return "MODERATE_RAIN";
+            if (code.find("RA") != std::string::npos && code[0] != '+') return "LIGHT_RAIN";
+        }
+        return "NO_RAIN";
+    }
 };
 
 } // namespace zoal_briefing::wx
-
-#endif // ZOAL_BRIEFING_WEATHER_HPP
