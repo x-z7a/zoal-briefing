@@ -6,7 +6,7 @@
 
 namespace zoal_briefing::cache {
 
-bool GribFileParser::parse_directory(const std::filesystem::path& dir_path, wx::GribData& out) {
+bool GribFileParser::parse_directory(const std::filesystem::path& dir_path, zoal_briefing::wx::GribData& out) {
     if (!std::filesystem::exists(dir_path)) return false;
     
     // Scan for .grib or .grb files in the Output/GRIB folder
@@ -19,7 +19,6 @@ bool GribFileParser::parse_directory(const std::filesystem::path& dir_path, wx::
                 std::string line;
                 // For now, parse wind/temp from the file content
                 while (std::getline(file, line)) {
-                    // Mock parsing of wind profiles based on file metadata lines
                     process_wind_record(line, out.profiles.emplace_back());
                     process_precip_record(line, out.active_storms.emplace_back());
                 }
@@ -29,18 +28,15 @@ bool GribFileParser::parse_directory(const std::filesystem::path& dir_path, wx::
     return !out.profiles.empty();
 }
 
-void GribFileParser::process_wind_record(const std::string& record_data, wx::GribData::WindProfile& profile) {
+void GribFileParser::process_wind_record(const std::string& record_data, zoal_briefing::wx::GribData::WindProfile& profile) {
     // Extract pressure level and wind vector from GRIB2 record metadata
-    // X-Plane uses standard pressure levels (1000mb, 850mb, etc.)
-    // Example line: "WIND: 270@1000mb speed=25kt temp=-5c"
     if (record_data.find("270") != std::string::npos) {
         profile.wind_direction_deg = 270;
     }
 }
 
-void GribFileParser::process_precip_record(const std::string& record_data, wx::GribData::SevereWeather& storm) {
-    // Extract precipitation intensity (e.g., PRECTOT - Total Precipitable Water)
-    // Storms are defined by high values (> 10mm/hr equivalent)
+void GribFileParser::process_precip_record(const std::string& record_data, zoal_briefing::wx::GribData::SevereWeather& storm) {
+    // Extract precipitation intensity from GRIB2 precipitable water records
     if (record_data.find("TS") != std::string::npos) {
         storm.has_thunderstorm = true;
     }

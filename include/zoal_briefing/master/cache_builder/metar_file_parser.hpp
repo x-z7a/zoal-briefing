@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include "zoal_briefing/master/data_types/weather.hpp"
 
 namespace zoal_briefing::cache {
 
@@ -15,7 +16,7 @@ public:
     static std::vector<std::string> parse_weather_codes(const std::string& raw);
 
     // Parse a METAR file from X-Plane's Output/real weather folder
-    static bool parse_file(const std::filesystem::path& filepath, class MetarFileData& out);
+    static bool parse_file(const std::filesystem::path& filepath, zoal_briefing::wx::MetarFileData& out);
 };
 
 } // namespace zoal_briefing::cache

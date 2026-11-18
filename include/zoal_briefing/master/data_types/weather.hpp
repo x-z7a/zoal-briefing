@@ -69,4 +69,6 @@ struct WeatherSummary {
     }
 };
 
+WeatherSummary summarize(const MetarFileData& metar, const GribData& grib);
+
 } // namespace zoal_briefing::wx

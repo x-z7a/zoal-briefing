@@ -5,10 +5,19 @@
 using namespace zoal_briefing::wx;
 
 int main() {
-    METARData metar = { "KORD", 25, "10SM", {"+TSRA"}, 23.0, 13.0, 30.02 };
+    MetarFileData metar;
+    metar.station = "KORD";
+    metar.wind_speed_kt = 25;
+    metar.visibility_sm = 10.0;
+    metar.weather_codes = { "+TSRA" };
+    metar.temperature_c = 23.0;
+    metar.dewpoint_c = 13.0;
+    metar.raw_text = "KORD 171951Z 27015G25KT 10SM FEW045 23/13 A3002";
     
-    // Simulate heavy storm + rain
-    WeatherSummary sum = summarize(metar, TAFData{}, std::vector<SIGMETData>{}, std::vector<PIREPData>{}, RadarObservation{});
+    GribData grib;
+    // No thunderstorm stubs - just test the metar-based logic
+    
+    WeatherSummary sum = summarize(metar, grib);
     
     assert(sum.has_thunderstorms == true);
     assert(sum.should_divert() == false); // Needs more hazard density to trigger divert automatically in this simple stub

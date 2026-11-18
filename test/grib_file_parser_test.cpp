@@ -1,6 +1,8 @@
 #include "zoal_briefing/master/cache_builder/grib_file_parser.hpp"
 #include <iostream>
 #include <filesystem>
+#include <fstream>
+#include <cassert>
 
 using namespace zoal_briefing::cache;
 
@@ -14,7 +16,7 @@ int main() {
     std::filesystem::path mock_file = test_dir + "/mock.grb";
     std::ofstream(mock_file) << content;
     
-    wx::GribData data;
+    zoal_briefing::wx::GribData data;
     if (GribFileParser::parse_directory(test_dir, data)) {
         assert(data.profiles.size() > 0);
         std::cout << "[Test] GribFileParser mock directory scan passed." << std::endl;
