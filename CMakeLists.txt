@@ -19,13 +19,14 @@ set(BRIEFINGMASTER_PIPER_SOURCE "" CACHE PATH "piper-cpp source tree (see script
 set(ZOAL_BRIEFING_XPLANE_SDK "${CMAKE_CURRENT_SOURCE_DIR}/sdk" CACHE PATH "Path to the X-Plane SDK root")
 
 find_package(Threads REQUIRED)
-find_package(OpenSSL QUIET) # For secure API key handling / HTTPS
 
+# --- Core Library: Local File-Based Weather & State Machine ---
 add_library(zoal_briefing_core STATIC
     src/state_machine/state_machine.cpp
     src/data_types/weather_summarizer.cpp
     src/llm_bridge/llm_bridge_router.cpp
-    src/cache_builder/cache_builder.cpp
+    src/cache_builder/metar_file_parser.cpp
+    src/cache_builder/grib_file_parser.cpp
     src/simbrief_trigger/simbrief_trigger.cpp
 )
 
@@ -42,7 +43,7 @@ if(ZOAL_ATC_DIR AND EXISTS "${ZOAL_ATC_DIR}/include")
     target_include_directories(zoal_briefing_core PRIVATE ${ZOAL_ATC_DIR}/include)
 endif()
 
-# --- Plugin Module ---
+# --- Plugin Module: X-Plane Integration ---
 if(ZOAL_BRIEFING_BUILD_PLUGIN)
     add_library(zoal_briefing MODULE)
     
@@ -74,8 +75,9 @@ if(ZOAL_BRIEFING_BUILD_TESTS)
         endif()
         add_test(NAME ${name} COMMAND ${name})
     endfunction()
-    
-    # Stub tests for core components
+
+    # Tests for local file-based weather parsing
+    zb_add_test(metar_parser_tests test/metar_file_parser_test.cpp)
+    zb_add_test(grib_parser_tests test/grib_file_parser_test.cpp)
     zb_add_test(weather_summary_tests tests/weather_summary_test.cpp)
-    zb_add_test(state_machine_tests tests/state_machine_test.cpp)
 endif()

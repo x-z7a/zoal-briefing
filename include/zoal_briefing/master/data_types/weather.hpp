@@ -3,85 +3,67 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <filesystem>
 
 namespace zoal_briefing::wx {
 
-enum class FlightCategory { VFR, MVFR, IFR, LIFR, UNKNOWN };
-enum class Severity { LOW, MODERATE, SEVERE, CRITICAL };
+// --- Local File Data Structures (X-Plane Output Folder) ---
 
-struct METARData {
+struct MetarFileData {
     std::string station;
     int wind_speed_kt = 0;
-    std::string visibility_statute_mi = "";
+    double visibility_sm = 10.0;
     std::vector<std::string> weather_codes; // e.g., "+TSRA", "BR", "FG"
     double temperature_c = 0.0;
     double dewpoint_c = 0.0;
-    double altimeter_inhg = 29.92;
+    std::string raw_text;
 };
 
-struct TAFData {
-    std::string station;
-    struct TimeGroup {
-        std::string valid_from;
-        std::string valid_to;
+struct GribData {
+    // Wind profiles (standard pressure levels)
+    struct WindProfile {
+        int pressure_mb = 0; // e.g., 1000, 850, 700...
+        int wind_direction_deg = 0;
         int wind_speed_kt = 0;
-        std::vector<std::string> weather_codes;
+        double temp_c = 0.0;
     };
-    std::vector<TimeGroup> periods;
-};
-
-struct SIGMETData {
-    std::string id;
-    std::string issuing_station;
-    std::string text;
-    Severity severity = Severity::MODERATE;
-};
-
-struct PIREPData {
-    std::string location;
-    std::string altitude_fl;
-    std::string turbulence_type; // e.g., "MOD", "SEV"
-    std::string icing_type;      // e.g., "TRACE", "LIGHT RIME"
-    std::string wind_dir_deg_t;
-};
-
-struct RadarObservation {
-    std::string source; // e.g., NEXRAD
-    struct Cell {
-        float lat = 0.0;
-        float lon = 0.0;
-        float intensity_dbz = 0.0; // Rain/Storm intensity
-        float max_ebzh = 0.0;      // Max Echo Height
+    std::vector<WindProfile> profiles;
+    
+    // Storm/Severe weather indicators from GRIB
+    struct SevereWeather {
+        double lat = 0.0;
+        double lon = 0.0;
+        double precipitation_rate_mm_hr = 0.0; // e.g., >10mm/hr is heavy rain
+        bool has_thunderstorm = false;
     };
-    std::vector<Cell> cells;
+    std::vector<SevereWeather> active_storms;
 };
+
+// --- Summary Aggregation (Local Data Only) ---
 
 struct WeatherSummary {
-    METARData metar;
-    TAFData taf;
-    std::vector<SIGMETData> sigmets;
-    std::vector<PIREPData> pireps;
-    RadarObservation radar;
+    MetarFileData metar;
+    GribData grib;
     
-    FlightCategory flight_category = FlightCategory::UNKNOWN;
+    // Derived Flags for Briefing Logic
     bool has_thunderstorms = false;
-    bool has_heavy_rain = false;
     bool is_hazardous = false;
-    double divert_probability = 0.0; // 0.0 to 1.0
+    std::string divert_reason; // "Wind Shear", "Heavy Rain", "Storms"
     
-    // --- Priority Helpers for Briefing ---
+    // --- Priority Helpers ---
+    
     bool should_divert() const {
-        if (is_hazardous && divert_probability > 0.75) return true;
-        if (has_thunderstorms && metar.wind_speed_kt > 30) return true;
-        if (std::any_of(sigmets.begin(), sigmets.end(), [](const SIGMETData& s){ return s.severity == Severity::CRITICAL; })) return true;
+        if (is_hazardous && !divert_reason.empty()) return true;
+        for (const auto& storm : grib.active_storms) {
+            if (storm.precipitation_rate_mm_hr > 5.0f || storm.has_thunderstorm) return true;
+        }
         return false;
     }
     
-    std::string get_rain_intensity_label() const {
-        if (has_heavy_rain) return "HEAVY_RAIN";
+    std::string get_rain_label() const {
         for (const auto& code : metar.weather_codes) {
-            if (code.find("RA") != std::string::npos && code[0] == '+') return "MODERATE_RAIN";
-            if (code.find("RA") != std::string::npos && code[0] != '+') return "LIGHT_RAIN";
+            if (code.find("RA") != std::string::npos && code[0] == '+') return "HEAVY_RAIN";
+            if (code.find("RA") != std::string::npos && code[0] != '+') return "MODERATE_RAIN";
         }
         return "NO_RAIN";
     }
