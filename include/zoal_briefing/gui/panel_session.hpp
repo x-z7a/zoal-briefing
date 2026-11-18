@@ -59,6 +59,9 @@ public:
   std::string theme() const;
   
   // Settings persistence.
+  void load_settings();
+  void save_settings();
+  
   void set_wake_word(const std::string &word);
   std::string wake_word() const;
   
@@ -73,6 +76,9 @@ public:
   bool settings_loaded() const { return true; }
   const PanelTelemetry *telemetry() const { return nullptr; }
   
+  // Action callback from panel UI.
+  void on_action(const std::string &action, const std::string &payload);
+
 private:
   PluginStatus status_ = PluginStatus::IDLE;
   bool connected_ = false;

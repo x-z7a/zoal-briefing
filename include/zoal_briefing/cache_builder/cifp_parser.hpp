@@ -3,12 +3,18 @@
 
 #include "zoal_briefing/data_types/cifp.hpp"
 #include <string>
+#include <vector>
 
 namespace zoal_briefing::cifp {
 
-class CifpParserImpl : public CifpParser {
+// Simple CIFP parser stub.
+class CifpParserImpl {
 public:
-    void parse_all(const std::string& cifp_dir) override;
+    void parse_all(const std::string& cifp_dir);
+    const std::vector<TerminalNavData>& get_terminal(const std::string& icao) const;
+
+private:
+    std::unordered_map<std::string, std::vector<TerminalNavData>> terminal_;
 };
 
 } // namespace zoal_briefing::cifp

@@ -10,11 +10,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(ZOAL_BRIEFING_BUILD_TESTS    "Build unit tests"              ON)
-option(ZOAL_BRIEFING_BUILD_PLUGIN   "Build X-Plane plugin module"   OFF)
+# Options — match the Makefile exactly.
+option(ZoalBriefing_BUILD_TESTS    "Build unit tests (SDK-free)"   ON)
+option(ZoalBriefing_BUILD_PLUGIN   "Build X-Plane .xpl plugin"     OFF)
 
-# Path to the X-Plane SDK root (empty = auto-download from GitHub releases)
-set(ZOAL_BRIEFING_XPLANE_SDK "" CACHE PATH "Path to the X-Plane SDK root")
+# Path to the X-Plane SDK root (empty = auto-download from GitHub releases).
+set(ZoalBriefing_XPLANE_SDK "" CACHE PATH "Path to the X-Plane SDK root")
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/XPlaneSDK.cmake)
 
@@ -27,9 +28,8 @@ add_library(zoal_briefing_core STATIC
     src/gui/panel_theme.cpp
     src/gui/panel_view.cpp
 
-    # Plugin glue
+    # Plugin glue (SDK-free parts)
     src/xplane/plugin_state.cpp
-    src/xplane/panel_window.cpp
 
     # State machine & LLM bridge
     src/state_machine/state_machine.cpp
@@ -45,11 +45,15 @@ add_library(zoal_briefing_core STATIC
     src/data_types/flight_plan.cpp
     src/data_types/sid_star.cpp
     src/data_types/weather.cpp
-    src/data_types/weather_summarizer.cpp
-    src/cache_builder/metar_file_parser.cpp
-    src/cache_builder/grib_file_parser.cpp
+    src/cache_builder/apt_dat_parser.cpp
     src/cache_builder/cache_builder.cpp
+    src/cache_builder/cifp_parser.cpp
+    src/cache_builder/grib_file_parser.cpp
+    src/cache_builder/grib_parser.cpp
+    src/cache_builder/metar_file_parser.cpp
+    src/cache_builder/navigraph_client.cpp
     src/cache_builder/taf_parser.cpp
+    src/cache_builder/weather_summarizer.cpp
 
     # Intent parsing & audio pipeline
     src/intent_parser/intent_parser.cpp
@@ -68,21 +72,61 @@ else()
     )
 endif()
 
+# ── Dear ImGui static library (needed by panel_window.cpp) ──────────────────────
+set(ZOAL_BRIEFING_IMGUI_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/.cache/imgui-1.92.9b")
+
+add_library(zoal_briefing_imgui STATIC
+    "${ZOAL_BRIEFING_IMGUI_SOURCE}/imgui.cpp"
+    "${ZOAL_BRIEFING_IMGUI_SOURCE}/imgui_draw.cpp"
+    "${ZOAL_BRIEFING_IMGUI_SOURCE}/imgui_tables.cpp"
+    "${ZOAL_BRIEFING_IMGUI_SOURCE}/imgui_widgets.cpp"
+)
+
+target_include_directories(zoal_briefing_imgui SYSTEM PUBLIC
+    "${ZOAL_BRIEFING_IMGUI_SOURCE}"
+)
+
+target_compile_definitions(zoal_briefing_imgui PUBLIC
+    IMGUI_DISABLE_DEMO_WINDOWS
+    IMGUI_DISABLE_DEBUG_TOOLS
+)
+
+set_target_properties(zoal_briefing_imgui PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # ── X-Plane plugin module (only when SDK present) ────────────────────────────
 set(_zb_sdk_present OFF)
-if(ZOAL_BRIEFING_XPLANE_SDK AND (EXISTS "${ZOAL_BRIEFING_XPLANE_SDK}/CHeaders" OR EXISTS "${ZOAL_BRIEFING_XPLANE_SDK}/XPLM"))
+if(ZoalBriefing_XPLANE_SDK AND EXISTS "${ZoalBriefing_XPLANE_SDK}/CHeaders")
+    set(_zb_sdk_present ON)
+elseif(ZoalBriefing_XPLANE_SDK AND EXISTS "${ZoalBriefing_XPLANE_SDK}/XPLM")
+    set(_zb_sdk_present ON)
+elseif(NOT ZoalBriefing_XPLANE_SDK AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/XPLM")
+    set(ZoalBriefing_XPLANE_SDK "${CMAKE_CURRENT_SOURCE_DIR}/sdk" CACHE PATH "Auto-detected X-Plane SDK" FORCE)
     set(_zb_sdk_present ON)
 endif()
 
-if(ZOAL_BRIEFING_BUILD_PLUGIN AND _zb_sdk_present)
+if(ZoalBriefing_BUILD_PLUGIN AND _zb_sdk_present)
+    message(STATUS "Building zoal-briefing .xpl plugin (SDK: ${ZoalBriefing_XPLANE_SDK})")
+
     add_library(zoal_briefing MODULE)
 
     target_sources(zoal_briefing PRIVATE
+        src/xplane/panel_window.cpp
         src/xplane/xplane_plugin.cpp
     )
 
-    target_link_libraries(zoal_briefing PRIVATE zoal_briefing_core)
-    target_include_directories(zoal_briefing PRIVATE ${ZOAL_BRIEFING_XPLANE_SDK})
+    target_link_libraries(zoal_briefing PRIVATE zoal_briefing_core zoal_briefing_imgui)
+    
+    # X-Plane SDK 4.4+ provides panel-graphics ImGui helpers (XPLMPanelGraphics.h)
+    # Required for the panel to render frames natively in X-Plane
+    if(NOT EXISTS "${ZoalBriefing_XPLANE_SDK}/XPLM/XPLMPanelGraphics.h")
+        message(FATAL_ERROR "X-Plane SDK 4.4+ required (needs XPLMPanelGraphics.h). "
+            "Download from https://github.com/x-plane/X-Plane-SDK/releases")
+    endif()
+    target_include_directories(zoal_briefing PRIVATE 
+        ${ZoalBriefing_XPLANE_SDK}
+        ${ZoalBriefing_XPLANE_SDK}/XPLM
+        ${ZoalBriefing_XPLANE_SDK}/CHeaders
+    )
 
     if(APPLE)
         target_compile_definitions(zoal_briefing PRIVATE APL=1)
@@ -91,7 +135,10 @@ if(ZOAL_BRIEFING_BUILD_PLUGIN AND _zb_sdk_present)
             "-framework AudioToolbox"
             "-framework Foundation"
         )
-        target_compile_options(zoal_briefing PRIVATE -fPIC)
+        set_target_properties(zoal_briefing PROPERTIES
+            BUILD_WITH_INSTALL_RPATH TRUE
+            INSTALL_RPATH "@loader_path"
+        )
     elseif(WIN32)
         target_compile_definitions(zoal_briefing PRIVATE IBM=1)
         target_link_libraries(zoal_briefing PRIVATE ws2_32 winmm)
@@ -101,23 +148,21 @@ if(ZOAL_BRIEFING_BUILD_PLUGIN AND _zb_sdk_present)
         target_link_libraries(zoal_briefing PRIVATE "-lX11" pthread dl m)
     endif()
 
-    # Plugin name: zoal-briefing.xpl (hyphenated, matching plugin naming convention)
     set_target_properties(zoal_briefing PROPERTIES
         OUTPUT_NAME "zoal-briefing"
         PREFIX ""
         SUFFIX ".xpl"
     )
 
-    message(STATUS "X-Plane plugin module enabled (output: ${CMAKE_CURRENT_BINARY_DIR}/zoal-briefing.xpl)")
 else()
-    if(ZOAL_BRIEFING_BUILD_PLUGIN)
-        message(WARNING "Plugin module skipped: X-Plane SDK not found at ${ZOAL_BRIEFING_XPLANE_SDK}")
-        message(WARNING "Pass -DZOAL_BRIEFING_XPLANE_SDK=/path/to/sdk to build the plugin")
+    if(ZoalBriefing_BUILD_PLUGIN)
+        message(WARNING "Plugin module skipped: X-Plane SDK not found")
+        message(WARNING "Pass -DZoalBriefing_XPLANE_SDK=/path/to/sdk to build the plugin")
     endif()
 endif()
 
 # ── tests (SDK-free, runs on all platforms) ───────────────────────────────────
-if(ZOAL_BRIEFING_BUILD_TESTS)
+if(ZoalBriefing_BUILD_TESTS)
     enable_testing()
 
     function(zb_add_test name source)
@@ -141,4 +186,4 @@ if(ZOAL_BRIEFING_BUILD_TESTS)
     message(STATUS "Unit tests enabled")
 endif()
 
-message(STATUS "ZoalBriefing v${PROJECT_VERSION} configured (tests=${ZOAL_BRIEFING_BUILD_TESTS}, plugin=${_zb_sdk_present})")
+message(STATUS "zoal-briefing v${PROJECT_VERSION} configured (tests=${ZoalBriefing_BUILD_TESTS}, plugin=${_zb_sdk_present})")

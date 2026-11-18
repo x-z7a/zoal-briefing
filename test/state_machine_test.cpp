@@ -2,8 +2,8 @@
 #include <cassert>
 #include <iostream>
 
-using zoal_briefing::sm::StateMachine;
-using zoal_briefing::sm::State;
+using zoal_briefing::state::StateMachine;
+using zoal_briefing::state::State;
 
 int main() {
     StateMachine sm;

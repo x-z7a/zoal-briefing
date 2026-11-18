@@ -7,6 +7,7 @@
 #include <functional>
 #include <thread>
 #include <chrono>
+#include <atomic>
 
 namespace zoal_briefing::llm {
 
@@ -14,7 +15,6 @@ namespace zoal_briefing::llm {
 //   API mode → CLI mode → cached template → voice prompt
 class FallbackChain {
 public:
-    // Try each step in sequence until one succeeds.
     using Runnable = std::function<std::optional<std::string>()>;
     
     struct Step {
@@ -25,14 +25,14 @@ public:
     void add_step(const Step& step);
     
     // Run the chain, returning the first non-empty result or nullopt if all fail.
-    std::optional<std::string> run();
+    std::optional<std::string> run() const;
     
     // Run the chain with a timeout (returns early if any step succeeds).
-    std::optional<std::string> run_with_timeout(double timeout_seconds = 5.0);
+    std::optional<std::string> run_with_timeout(double timeout_seconds = 5.0) const;
 
 private:
     std::vector<Step> steps_;
-    bool interrupted_ = false;
+    mutable bool interrupted_ = false;
 };
 
 } // namespace zoal_briefing::llm

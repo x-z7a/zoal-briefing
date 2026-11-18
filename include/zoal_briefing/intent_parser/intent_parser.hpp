@@ -21,7 +21,7 @@ enum class BriefingType {
 struct IntentResult {
     BriefingType type{BriefingType::UNKNOWN};
     std::optional<std::string> airport;  // ICAO or aircraft position
-    std::std::optional<std::string> runway;
+    std::optional<std::string> runway;
     std::vector<std::string> keywords_found; // For debugging/logging.
     bool confirmed = false;
 };
@@ -38,7 +38,7 @@ public:
     bool is_valid_request(const std::string& transcript) const;
     
     // Extract an ICAO code from the transcript (e.g., "KJFK", "KSFO").
-    static std::optional<std::string> extract_icao(const std::string& transcript);
+    std::optional<std::string> extract_icao(const std::string& transcript);
 
 private:
     std::unordered_map<std::string, BriefingType> keywords_;

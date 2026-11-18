@@ -2,47 +2,43 @@
 #include <sstream>
 #include <algorithm>
 #include <cmath>
+#include <regex>
 
 namespace zoal_briefing::wx {
 
-// ── METARWorker Implementation ────────────────────────────────────────────────
-METARWorker::METARWorker(const std::string& xplane_data_dir) {
-    (void)xplane_data_dir;
-}
-
-void METARWorker::fetch_metar(const std::string& icao) {
-    // TODO: HTTP GET to NOAA / ASOS for METAR string.
-    // e.g., https://aviationweather.gov/api/data/metar?ids=KSFO&format=raw
-    (void)icao;
-}
-
-std::optional<METARData> METARWorker::get_latest() const {
-    return cached_metar_;
-}
-
-METARData METARWorker::parse(const std::string& metar_text) {
-    // TODO: Full METAR parser supporting automated and manual reports.
-    // Handles: "KSFO 172053Z 28015KT 10SM FEW020 SCT250 14/M02 A3012"
-    (void)metar_text;
-    return {};
-}
-
-// ── TAFParser Implementation ────────────────────────────────────────────────
-std::optional<TAFData> TAFParser::parse(const std::string& taf_text) {
-    if (taf_text.empty()) return std::nullopt;
+// ── Basic METAR parsing stub ─────────────────────────────────────────────────
+WeatherSummary summarize(const MetarFileData& metar, const GribData& grib) {
+    WeatherSummary summary;
+    summary.metar = metar;
+    summary.grib = grib;
     
-    TAFData taf;
-    taf.raw = taf_text;
-    // TODO: Parse the full TAF string into periods.
-    // Look for "AMD", "PROBE", "FM" change indicators.
-    return taf;
-}
-
-std::optional<TAFPeriod> TAFParser::get_period(size_t index) const {
-    if (index < data_.periods.size()) {
-        return data_.periods[index];
+    // Check for hazardous conditions from METAR
+    for (const auto& code : metar.weather_codes) {
+        if (code.find("TS") != std::string::npos || 
+            code.find("+FC") != std::string::npos) {
+            summary.has_thunderstorms = true;
+            summary.divert_reason = "Thunderstorms";
+        }
+        if (code.find("+RA") != std::string::npos || 
+            code.find("+FZRA") != std::string::npos) {
+            summary.is_hazardous = true;
+            if (summary.divert_reason.empty()) {
+                summary.divert_reason = "Heavy Precipitation";
+            }
+        }
     }
-    return std::nullopt;
+    
+    // Check GRIB data for storms
+    for (const auto& storm : grib.active_storms) {
+        if (storm.precipitation_rate_mm_hr > 5.0 || storm.has_thunderstorm) {
+            summary.is_hazardous = true;
+            if (summary.divert_reason.empty()) {
+                summary.divert_reason = "Grib Storm Data";
+            }
+        }
+    }
+    
+    return summary;
 }
 
 } // namespace zoal_briefing::wx

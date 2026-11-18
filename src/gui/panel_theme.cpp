@@ -1,27 +1,32 @@
 #include "zoal_briefing/gui/panel_theme.hpp"
 
-#include <array>
-#include <string_view>
-
 namespace zoal_briefing::gui {
 
-namespace {
+// --- palette ------------------------------------------------------------------
 
-constexpr std::array<std::string_view, 3> kThemes = {"graphite", "daylight", "night"};
-
-} // namespace
-
-std::optional<std::string> known_panel_theme(std::string_view name) {
-  for (const auto theme : kThemes) {
-    if (name == theme) {
-      return std::string(theme);
-    }
-  }
-  return std::nullopt;
+PanelTheme parse_panel_theme(std::string_view name) {
+  if (name == "daylight") return PanelTheme::daylight;
+  if (name == "night") return PanelTheme::night;
+  return PanelTheme::graphite;
 }
 
-std::string panel_theme_or_default(std::string_view stored) {
-  return known_panel_theme(stored).value_or(std::string(kDefaultPanelTheme));
+std::string to_panel_theme_string(PanelTheme theme) {
+  switch (theme) {
+  case PanelTheme::daylight:
+    return "daylight";
+  case PanelTheme::night:
+    return "night";
+  case PanelTheme::graphite:
+    break;
+  }
+  return "graphite";
+}
+
+PanelTheme panel_theme_or_default(std::string_view stored) {
+  if (stored == "daylight" || stored == "night") {
+    return parse_panel_theme(stored);
+  }
+  return PanelTheme::graphite;
 }
 
 } // namespace zoal_briefing::gui

@@ -11,7 +11,7 @@ void FallbackChain::add_step(const Step& step) {
     steps_.push_back(step);
 }
 
-std::optional<std::string> FallbackChain::run() {
+std::optional<std::string> FallbackChain::run() const {
     for (const auto& step : steps_) {
         if (interrupted_) break;
         
@@ -24,7 +24,7 @@ std::optional<std::string> FallbackChain::run() {
 }
 
 std::optional<std::string> FallbackChain::run_with_timeout(
-    double timeout_seconds) {
+    double timeout_seconds) const {
     
     interrupted_ = false;
     

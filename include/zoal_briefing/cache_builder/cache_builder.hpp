@@ -4,17 +4,16 @@
 #include <string>
 #include <thread>
 #include <atomic>
+#include <optional>
 
 namespace zoal_briefing::cache {
 
-// Orchestrates the startup caching of airport data, GRIB weather, and 
-// (optionally) Navigraph SID/STAR procedures.
+// Orchestrates the startup caching of airport data, GRIB weather.
 class CacheBuilder {
 public:
     explicit CacheBuilder(const std::string& apt_dat_path,
                           const std::string& cifp_dir,
-                          const std::string& grib_dir,
-                          std::optional<std::string> navigraph_key = std::nullopt);
+                          const std::string& grib_dir);
 
     // Start the async parsing. Non-blocking.
     void start();
@@ -26,9 +25,10 @@ private:
     std::string apt_dat_path_;
     std::string cifp_dir_;
     std::string grib_dir_;
-    std::optional<std::string> navigraph_key_;
     std::atomic<bool> ready_{false};
     std::thread worker_;
+    
+    void log(const std::string& msg) const;
 };
 
 } // namespace zoal_briefing::cache

@@ -2,6 +2,7 @@
 #define ZOAL_BRIEFING_CLI_MODE_HPP
 
 #include <string>
+#include <vector>
 #include <optional>
 
 namespace zoal_briefing::llm {

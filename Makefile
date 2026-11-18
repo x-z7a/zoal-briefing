@@ -11,7 +11,8 @@ PLUGIN_BUILD_DIR ?= $(ROOT_DIR)/build-plugin
 DIST_DIR ?= $(ROOT_DIR)/dist
 RELEASE_DIR ?= $(DIST_DIR)/zoal-briefing
 BUILD_TYPE ?= Release
-# Local X-Plane plugin installation directory (override for testing on non-standard installs)
+
+# Local X-Plane plugin installation directory (override for testing on non-standard installs).
 LOCAL_XPLANE_PLUGIN_DIR ?= $(HOME)/X-Plane 12/Resources/plugins/zoal-briefing
 
 PLUGIN_XPL := $(PLUGIN_BUILD_DIR)/zoal-briefing.xpl
@@ -55,11 +56,11 @@ endif
 help:
 	@echo "zoal-briefing — X-Plane voice briefing plugin"
 	@echo
-	@echo "  test             build and run the SDK-free C++ core tests"
-	@echo "  plugin           build the .xpl (fetches the X-Plane SDK from GitHub releases)"
-	@echo "  install-plugin   build and install into X-Plane (LOCAL_XPLANE_PLUGIN_DIR=)"
-	@echo "  release          assemble the release tree in dist/zoal-briefing"
-	@echo "  clean            remove build outputs and dist/"
+	@echo "  test            build and run the SDK-free C++ core tests"
+	@echo "  plugin          build the .xpl (fetches the X-Plane SDK from GitHub releases)"
+	@echo "  install-plugin  build and install into X-Plane ($(LOCAL_XPLANE_PLUGIN_DIR))"
+	@echo "  release         assemble the release tree in dist/zoal-briefing"
+	@echo "  clean           remove build outputs and dist/"
 
 # --- build -------------------------------------------------------------------
 
@@ -77,6 +78,7 @@ endif
 
 # Build plugin (fetches X-Plane SDK from GitHub releases automatically)
 plugin:
+	@echo ">>> Building zoal-briefing .xpl plugin..."
 	cmake -S . -B "$(PLUGIN_BUILD_DIR)" $(CMAKE_GENERATOR) \
 		-DZoalBriefing_BUILD_TESTS=OFF \
 		-DZoalBriefing_BUILD_PLUGIN=ON \
@@ -86,11 +88,12 @@ ifeq ($(OS),Windows_NT)
 else
 	cmake --build "$(PLUGIN_BUILD_DIR)"
 endif
+	@echo ">>> Plugin built: $(PLUGIN_XPL)"
 
 # --- install & release -------------------------------------------------------
 #
 # Install plugin into local X-Plane plugins directory.
-# Mirrors zoal-atc: builds the plugin, then copies it into X-Plane's Plugins folder.
+# Mirrors zoal-atc pattern: build the plugin, then copy it into X-Plane's Plugins folder.
 
 install-plugin: plugin
 	@plugins_dir="$$(dirname "$(LOCAL_XPLANE_PLUGIN_DIR)")"; \

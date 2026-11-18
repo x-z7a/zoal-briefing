@@ -5,6 +5,7 @@
 #include <optional>
 #include <functional>
 #include <chrono>
+#include <nlohmann/json.hpp>
 
 namespace zoal_briefing::llm {
 

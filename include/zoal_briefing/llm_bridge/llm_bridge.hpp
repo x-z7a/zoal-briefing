@@ -4,56 +4,57 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <vector>
+#include <optional>
 
-namespace zoal_briefing::bridge {
+namespace zoal_briefing::llm {
 
-enum class ProviderMode {
-    API_MODE, // OpenAI / Anthropic / Ollama (REST)
-    CLI_MODE, // Claude / Copilot / Codex (CLI execution)
-    AUTO      // Health check -> API -> CLI -> Fallback
+enum class Mode {
+    API,
+    CLI,
+    AUTO
 };
 
-struct LLMConfig {
-    std::string mode = "AUTO"; // "API", "CLI", "AUTO"
+struct BridgeConfig {
+    Mode mode = Mode::AUTO;
     
     struct APIConfig {
-        std::string provider = "Ollama";
         std::string endpoint = "http://localhost:11434/v1/chat/completions";
         std::string model = "qwen3.6:35b-a3b";
-        std::string api_key = ""; // Loaded from OS keychain / env
+        std::string api_key = "";
     } api;
     
     struct CLIConfig {
-        std::string provider = "Claude"; // or "codex", "custom"
         std::string command = "claude --output-format json";
         std::string prompt_template_path = "./prompts/cli_briefing.txt";
         std::vector<std::string> env_tokens = {"ANTHROPIC_API_KEY"};
     } cli;
 };
 
-class LLMRouter {
+using BriefingCallback = std::function<void(const std::string& result, const std::string& error)>;
+
+class LlmBridge {
 public:
-    LLMRouter() = default;
+    LlmBridge(const BridgeConfig& config);
     
-    void load_config(const std::string& config_path);
+    // Synchronous generate with callback (runs asynchronously in background).
+    void generate(const std::string& system_prompt,
+                  const std::string& user_input,
+                  BriefingCallback cb);
     
-    using ResultCallback = std::function<void(bool success, const std::string& briefing_text)>;
+    // Pure async variant (no callback, runs fire-and-forget).
+    void generate_async(const std::string& system_prompt,
+                        const std::string& user_input);
     
-    void generate_briefing(const std::string& system_prompt,
-                           const std::string& user_context,
-                           ResultCallback cb);
+    // Query the configured mode.
+    Mode current_mode() const;
+    
+    // Check if at least one backend is available.
+    bool is_available() const;
 
 private:
-    LLMConfig config_;
+    BridgeConfig config_;
     mutable std::mutex mtx_;
-    
-    // Internal routing & fallback chain
-    bool is_api_available() const;
-    bool is_cli_available() const;
-    
-    void call_api(const std::string& system_prompt, const std::string& user_context, ResultCallback cb);
-    void call_cli(const std::string& system_prompt, const std::string& user_context, ResultCallback cb);
-    void use_cached_fallback(const std::string& system_prompt, ResultCallback cb);
 };
 
-} // namespace zoal_briefing::bridge
+} // namespace zoal_briefing::llm

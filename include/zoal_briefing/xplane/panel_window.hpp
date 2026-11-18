@@ -1,47 +1,40 @@
-#ifndef ZOAL_BRIEFING_GUI_PANEL_WINDOW_HPP
-#define ZOAL_BRIEFING_GUI_PANEL_WINDOW_HPP
+#ifndef ZOAL_BRIEFING_XPLANE_PANEL_WINDOW_HPP
+#define ZOAL_BRIEFING_XPLANE_PANEL_WINDOW_HPP
 
 #include "zoal_briefing/gui/panel_session.hpp"
+
+#include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
-struct ImGuiWindow;
-struct ImFont;
+// Forward declaration — the actual type is in imgui_window.hpp.
+struct ImguiWindow;
+struct ImGuiContext;
 
 namespace zoal_briefing::xplane {
 
-// The panel window: what the pilot sees and touches in X-Plane.
-class PanelWindow {
-public:
-  struct Options {
-    int open_width = 1120;
-    int open_height = 740;
-    int min_width = 760;
-    int min_height = 320;
-  };
+// The briefing radio panel: a Dear ImGui window drawn natively by X-Plane
+// (panel-graphics helpers), so a click on it never makes X-Plane's "active
+// browser" — the state that blanks other plugins' UIs.
+//
+// It is a view of gui::PanelSession and nothing else: no X-Plane here in the
+// view layer, so the same frame code can be tested without the SDK.
 
-  ~PanelWindow();
-  
-  // Open the panel at its initial size, centred on the main display.
-  void show(const PanelSession &session, const Options &options = {});
-  
-  // Close and destroy the panel.
-  void hide();
-  
-  // Whether the panel is currently visible.
-  bool visible() const;
-
-  // Process UI actions from the panel view (e.g., save settings).
-  void on_action(const std::string &action, const std::string &payload);
-
-private:
-  struct Impl;
-  std::unique_ptr<Impl> impl_;
+struct PanelConfig {
+  std::string plugin_version;
+  // The GUI proxy the panel talks through.
+  std::function<void(const std::string &action, const std::string &payload)> local_action;
 };
 
-// Called by X-Plane's flight loop to update the panel.
+// Start creates the window (hidden), installs the toggle command and menu.
+void start_panel(const PanelConfig &config);
+void stop_panel();
+
+// Call once per flight loop: drains pressed actions from the last frame.
 void tick_panel();
 
 } // namespace zoal_briefing::xplane
 
-#endif // ZOAL_BRIEFING_GUI_PANEL_WINDOW_HPP
+#endif // ZOAL_BRIEFING_XPLANE_PANEL_WINDOW_HPP

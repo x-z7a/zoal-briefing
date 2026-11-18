@@ -1,11 +1,21 @@
 #ifndef ZOAL_BRIEFING_TAF_PARSER_HPP
 #define ZOAL_BRIEFING_TAF_PARSER_HPP
 
-#include "zoal_briefing/data_types/weather.hpp"
 #include <string>
 #include <optional>
+#include <vector>
 
 namespace zoal_briefing::wx {
+
+struct TAFPeriod {
+    std::string raw_line;
+};
+
+// TAF data structure for the parser.
+struct TAFData {
+    std::string raw;
+    std::vector<TAFPeriod> periods;
+};
 
 // TAFParser — Terminal Aerodrome Forecast parser.
 class TAFParser {
