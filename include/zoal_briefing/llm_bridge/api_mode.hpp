@@ -7,7 +7,7 @@
 #include <chrono>
 #include <nlohmann/json.hpp>
 
-namespace zoal_briefing::llm {
+namespace zoal_briefing::llm_bridge {
 
 // HTTP/REST client for OpenAI-compatible, Anthropic, Ollama, or LM Studio endpoints.
 class ApiMode {
@@ -46,6 +46,6 @@ private:
     std::string api_key_;
 };
 
-} // namespace zoal_briefing::llm
+} // namespace zoal_briefing::llm_bridge
 
 #endif // ZOAL_BRIEFING_API_MODE_HPP

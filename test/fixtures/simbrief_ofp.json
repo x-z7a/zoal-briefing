@@ -1,0 +1,102 @@
+{
+  "fetch": {"userid": "123456", "static_id": {}, "status": "Success", "time": "0.0412"},
+  "params": {
+    "request_id": "158012345",
+    "user_id": "123456",
+    "time_generated": "1795000000",
+    "static_id": {},
+    "ofp_layout": "LIDO",
+    "airac": "2611",
+    "units": "kgs"
+  },
+  "general": {
+    "release": "1",
+    "icao_airline": "SWA",
+    "flight_number": "1234",
+    "costindex": "30",
+    "initial_altitude": "33000",
+    "stepclimb_string": "KSFO/0330",
+    "avg_wind_comp": "-18",
+    "avg_wind_dir": "290",
+    "avg_wind_spd": "25",
+    "route_distance": "322",
+    "air_distance": "338",
+    "passengers": "142",
+    "route": "SSTIK4 SSTIK DCT AVE DCT GMN SADDE8",
+    "sid_ident": "SSTIK4",
+    "sid_trans": {},
+    "star_ident": "SADDE8",
+    "star_trans": "GMN"
+  },
+  "origin": {
+    "icao_code": "KSFO",
+    "iata_code": "SFO",
+    "name": "SAN FRANCISCO INTL",
+    "elevation": "13",
+    "plan_rwy": "28L",
+    "trans_alt": "18000",
+    "trans_level": "18000",
+    "metar": "KSFO 181756Z 29014KT 10SM FEW008 BKN200 16/11 A3002 RMK AO2",
+    "taf": "KSFO 181720Z 1818/1924 29012KT P6SM FEW010 FM190300 28008KT P6SM SKC"
+  },
+  "destination": {
+    "icao_code": "KLAX",
+    "iata_code": "LAX",
+    "name": "LOS ANGELES INTL",
+    "elevation": "128",
+    "plan_rwy": "24R",
+    "trans_alt": "18000",
+    "trans_level": "18000",
+    "metar": "KLAX 181753Z 25011KT 8SM BKN015 OVC025 18/14 A2998",
+    "taf": "KLAX 181720Z 1818/1924 25010KT P6SM BKN015 TEMPO 1818/1821 BKN012"
+  },
+  "alternate": {
+    "icao_code": "KONT",
+    "iata_code": "ONT",
+    "name": "ONTARIO INTL",
+    "elevation": "944",
+    "plan_rwy": "26R",
+    "metar": "KONT 181753Z 24008KT 10SM SCT050 21/09 A2997",
+    "taf": {}
+  },
+  "aircraft": {"icaocode": "B738", "name": "B737-800", "reg": "N8301J"},
+  "atc": {"callsign": "SWA1234", "route": "SSTIK4 SSTIK DCT AVE DCT GMN SADDE8"},
+  "times": {"est_time_enroute": "4380", "sched_out": "1795003200"},
+  "fuel": {
+    "taxi": "200",
+    "enroute_burn": "4310",
+    "contingency": "216",
+    "alternate_burn": "1180",
+    "reserve": "1290",
+    "etops": "0",
+    "extra": "500",
+    "min_takeoff": "6996",
+    "plan_takeoff": "7496",
+    "plan_ramp": "7696",
+    "plan_landing": "3186",
+    "avg_fuel_flow": "2600"
+  },
+  "weights": {
+    "oew": "41413",
+    "pax_count": "142",
+    "est_zfw": "55623",
+    "max_zfw": "62731",
+    "est_tow": "63119",
+    "max_tow": "79015",
+    "est_ldw": "58809",
+    "max_ldw": "66360"
+  },
+  "navlog": {
+    "fix": [
+      {"ident": "TRUKN", "name": "TRUKN", "type": "wpt", "stage": "CLB", "via_airway": "SSTIK4", "is_sid_star": "1", "distance": "9", "altitude_feet": "6000", "wind_dir": "290", "wind_spd": "12"},
+      {"ident": "SSTIK", "name": "SSTIK", "type": "wpt", "stage": "CLB", "via_airway": "SSTIK4", "is_sid_star": "1", "distance": "21", "altitude_feet": "16000", "wind_dir": "295", "wind_spd": "18"},
+      {"ident": "TOC", "name": "TOP OF CLIMB", "type": "ltlg", "stage": "CLB", "via_airway": "DCT", "is_sid_star": "0", "distance": "62", "altitude_feet": "33000", "wind_dir": "290", "wind_spd": "34"},
+      {"ident": "AVE", "name": "AVENAL", "type": "vor", "stage": "CRZ", "via_airway": "DCT", "is_sid_star": "0", "distance": "48", "altitude_feet": "33000", "wind_dir": "285", "wind_spd": "30"},
+      {"ident": "TOD", "name": "TOP OF DESCENT", "type": "ltlg", "stage": "CRZ", "via_airway": "DCT", "is_sid_star": "0", "distance": "38", "altitude_feet": "33000", "wind_dir": "280", "wind_spd": "28"},
+      {"ident": "GMN", "name": "GORMAN", "type": "vor", "stage": "DSC", "via_airway": "DCT", "is_sid_star": "0", "distance": "40", "altitude_feet": "24000", "wind_dir": "270", "wind_spd": "22"},
+      {"ident": "SADDE", "name": "SADDE", "type": "wpt", "stage": "DSC", "via_airway": "SADDE8", "is_sid_star": "1", "distance": "45", "altitude_feet": "12000", "wind_dir": "260", "wind_spd": "15"},
+      {"ident": "SMO", "name": "SANTA MONICA", "type": "vor", "stage": "DSC", "via_airway": "SADDE8", "is_sid_star": "1", "distance": "47", "altitude_feet": "7000", "wind_dir": "250", "wind_spd": "11"},
+      {"ident": "KLAX", "name": "LOS ANGELES INTL", "type": "apt", "stage": "DSC", "via_airway": {}, "is_sid_star": "0", "distance": "12", "altitude_feet": "128", "wind_dir": "250", "wind_spd": "11"}
+    ]
+  }
+}

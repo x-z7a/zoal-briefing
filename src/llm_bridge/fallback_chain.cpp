@@ -5,7 +5,7 @@
 #include <atomic>
 #include <chrono>
 
-namespace zoal_briefing::llm {
+namespace zoal_briefing::llm_bridge {
 
 void FallbackChain::add_step(const Step& step) {
     steps_.push_back(step);
@@ -47,4 +47,4 @@ std::optional<std::string> FallbackChain::run_with_timeout(
     return std::nullopt;
 }
 
-} // namespace zoal_briefing::llm
+} // namespace zoal_briefing::llm_bridge

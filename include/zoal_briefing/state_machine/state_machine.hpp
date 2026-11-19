@@ -32,7 +32,8 @@ const char *to_string(State state);
 //   WAKE_DETECTED -> LISTENING       acknowledgement played
 //   LISTENING -> STT_COMPLETE        request transcribed
 //   STT_COMPLETE -> PARSING          briefing flow (later components)
-//   STT_COMPLETE -> PLAYBACK         echo mode: speak the transcript back
+//   STT_COMPLETE -> PLAYBACK         speak the reply (or echo the transcript)
+//   STT_COMPLETE -> BRIEFING_GENERATING  wait for a briefing still being generated
 //   PARSING -> DATA_READY -> LLM_ROUTING -> BRIEFING_GENERATING -> PLAYBACK
 //   PLAYBACK -> IDLE                 done speaking
 //   any -> IDLE                      reset, timeout or error

@@ -41,8 +41,9 @@ bool file_exists(const std::string &path) {
 
 } // namespace
 
-VoicePipeline::VoicePipeline(AudioOutput &output, state::StateMachine &machine)
-    : output_(output), machine_(machine) {}
+VoicePipeline::VoicePipeline(AudioOutput &output, state::StateMachine &machine,
+                             Responder *responder)
+    : output_(output), machine_(machine), responder_(responder) {}
 
 VoicePipeline::~VoicePipeline() { stop(); }
 
@@ -116,7 +117,8 @@ void VoicePipeline::load(AudioConfig config, std::string models_dir) {
   wake_ = std::move(wake);
   stt_ = std::move(stt);
   tts_ = std::move(tts);
-  loop_ = std::make_unique<VoiceLoop>(loop_config, *wake_, *stt_, *tts_, output_, machine_);
+  loop_ = std::make_unique<VoiceLoop>(loop_config, *wake_, *stt_, *tts_, output_, machine_,
+                                      responder_);
   loop_->start();
 
   mic_ = std::make_unique<Mic>();
@@ -174,6 +176,10 @@ void VoicePipeline::request_listen() {
 
 void VoicePipeline::request_cancel() {
   if (ready_ && loop_) loop_->request_cancel();
+}
+
+SpeechProgress VoicePipeline::speech_progress() const {
+  return (ready_ && loop_) ? loop_->speech_progress() : SpeechProgress{};
 }
 
 std::string VoicePipeline::last_transcript() const {

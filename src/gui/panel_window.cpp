@@ -97,6 +97,8 @@ void load_view_state() {
              panel.session.llm_endpoint());
   copy_field(panel.view_state.model_name, sizeof(panel.view_state.model_name),
              panel.session.model_name());
+  copy_field(panel.view_state.simbrief_pilot, sizeof(panel.view_state.simbrief_pilot),
+             panel.session.simbrief_pilot());
   panel.view_state.wake_word_stored = panel.session.wake_word();
   panel.view_state.llm_endpoint_stored = panel.session.llm_endpoint();
   panel.view_state.model_name_stored = panel.session.model_name();

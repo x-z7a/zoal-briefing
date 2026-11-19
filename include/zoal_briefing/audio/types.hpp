@@ -59,6 +59,29 @@ public:
   virtual std::optional<PcmClip> synthesize(const std::string &text) = 0;
 };
 
+// What the loop says back to a transcribed request. Without one, the loop
+// echoes the transcript.
+struct Reply {
+  enum class Status {
+    READY,     // the whole answer: speak text
+    STREAMING, // the answer so far, still being written: speak its whole
+               // sentences and ask again for the rest
+    PENDING,   // nothing yet: speak text (a "stand by") once, then ask again
+  };
+  Status status = Status::READY;
+  std::string text;
+};
+
+class Responder {
+public:
+  virtual ~Responder() = default;
+  // Called on the voice worker thread, first with a fresh request and then
+  // again with the same request while the answer is PENDING or STREAMING.
+  // A STREAMING text only grows; a later text that does not continue it is
+  // spoken after what was already said. Must not block.
+  virtual Reply reply(const std::string &request) = 0;
+};
+
 // Plays a clip. on_done may be called from any thread, exactly once per
 // clip that started, when it finishes or is stopped.
 class AudioOutput {

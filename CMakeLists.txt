@@ -81,6 +81,7 @@ add_library(zoal_briefing_core STATIC
 
     # Plugin glue (SDK-free parts)
     src/xplane/plugin_state.cpp
+    src/xplane/briefing_responder.cpp
 
     # State machine & LLM bridge
     src/state_machine/state_machine.cpp
@@ -89,6 +90,9 @@ add_library(zoal_briefing_core STATIC
     src/llm_bridge/cli_mode.cpp
     src/llm_bridge/fallback_chain.cpp
     src/llm_bridge/llm_bridge_router.cpp
+    src/llm_bridge/ollama_client.cpp
+    src/llm_bridge/briefing_prompts.cpp
+    src/llm_bridge/briefing_generator.cpp
 
     # Data types & cache builders
     src/data_types/airport.cpp
@@ -106,6 +110,12 @@ add_library(zoal_briefing_core STATIC
     src/cache_builder/taf_parser.cpp
     src/cache_builder/weather_summarizer.cpp
 
+    # SimBrief OFP (HTTP goes through util::HttpClient, implemented in
+    # zoal_briefing_http below)
+    src/simbrief/ofp.cpp
+    src/simbrief/client.cpp
+    src/simbrief/plan_watcher.cpp
+
     # Intent parsing
     src/intent_parser/intent_parser.cpp
     src/intent_parser/keyword_router.cpp
@@ -114,6 +124,7 @@ add_library(zoal_briefing_core STATIC
     # zoal_briefing_audio below)
     src/audio/config.cpp
     src/audio/input/endpointer.cpp
+    src/audio/tts/sentences.cpp
     src/audio/voice_loop.cpp
 
     # Panel view state & session (shared with plugin module)
@@ -131,6 +142,29 @@ else()
     target_compile_options(zoal_briefing_core PRIVATE
         -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion
     )
+endif()
+
+# ── HTTP (libcurl where found) ────────────────────────────────────────────────
+# SimBrief and the LLM go through util::HttpClient. libcurl comes with macOS and
+# Linux; where it is missing (Windows, for now) every request fails with a
+# clear error instead, and the plugin still builds and loads.
+find_package(CURL QUIET)
+if(CURL_FOUND)
+    add_library(zoal_briefing_http STATIC src/util/curl_http_client.cpp)
+    target_link_libraries(zoal_briefing_http PUBLIC zoal_briefing_core PRIVATE CURL::libcurl)
+    message(STATUS "HTTP via libcurl ${CURL_VERSION_STRING}")
+else()
+    add_library(zoal_briefing_http STATIC src/util/no_http_client.cpp)
+    target_link_libraries(zoal_briefing_http PUBLIC zoal_briefing_core)
+    message(WARNING "libcurl not found: the plugin builds without HTTP (no SimBrief, no LLM)")
+endif()
+set_target_properties(zoal_briefing_http PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# Dev tool: fetch a SimBrief OFP and generate its briefings outside X-Plane.
+add_executable(briefing_check tools/briefing_check.cpp)
+target_link_libraries(briefing_check PRIVATE zoal_briefing_http)
+if(NOT ZoalBriefing_BUILD_TESTS)
+    set_target_properties(briefing_check PROPERTIES EXCLUDE_FROM_ALL ON)
 endif()
 
 # ── audio pipeline (optional) ─────────────────────────────────────────────────
@@ -272,7 +306,7 @@ if(ZoalBriefing_BUILD_PLUGIN AND _zb_sdk_present)
         ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
 
-    target_link_libraries(zoal_briefing PRIVATE zoal_briefing_core zoal_briefing_imgui)
+    target_link_libraries(zoal_briefing PRIVATE zoal_briefing_core zoal_briefing_http zoal_briefing_imgui)
     if(ZoalBriefing_WITH_AUDIO)
         target_link_libraries(zoal_briefing PRIVATE zoal_briefing_audio)
         target_compile_definitions(zoal_briefing PRIVATE ZOAL_BRIEFING_HAS_AUDIO=1)
@@ -390,6 +424,16 @@ if(ZoalBriefing_BUILD_TESTS)
     zb_add_test(audio_config_tests test/audio_config_test.cpp)
     zb_add_test(endpointer_tests test/endpointer_test.cpp)
     zb_add_test(voice_loop_tests test/voice_loop_test.cpp)
+    zb_add_test(sentences_tests test/sentences_test.cpp)
+    zb_add_test(simbrief_tests test/simbrief_test.cpp)
+    target_compile_definitions(simbrief_tests PRIVATE
+        ZB_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures")
+    zb_add_test(briefing_generator_tests test/briefing_generator_test.cpp)
+    target_compile_definitions(briefing_generator_tests PRIVATE
+        ZB_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures")
+    zb_add_test(briefing_responder_tests test/briefing_responder_test.cpp)
+    target_compile_definitions(briefing_responder_tests PRIVATE
+        ZB_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures")
 
     # The real engines against the real models: only with the audio pipeline
     # built and the models downloaded (scripts/ensure-models.sh).

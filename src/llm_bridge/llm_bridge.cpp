@@ -7,7 +7,7 @@
 #include <thread>
 #include <chrono>
 
-namespace zoal_briefing::llm {
+namespace zoal_briefing::llm_bridge {
 
 LlmBridge::LlmBridge(const BridgeConfig& config) : config_(config) {}
 
@@ -106,4 +106,4 @@ bool LlmBridge::is_available() const {
     return true;     // Assume API is available.
 }
 
-} // namespace zoal_briefing::llm
+} // namespace zoal_briefing::llm_bridge

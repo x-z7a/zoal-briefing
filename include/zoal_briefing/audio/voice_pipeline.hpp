@@ -3,6 +3,7 @@
 
 #include "zoal_briefing/audio/config.hpp"
 #include "zoal_briefing/audio/types.hpp"
+#include "zoal_briefing/audio/voice_loop.hpp"
 #include "zoal_briefing/state_machine/state_machine.hpp"
 
 #include <atomic>
@@ -17,17 +18,18 @@ class OpenWakeWord;
 class WhisperStt;
 class PiperTts;
 class Mic;
-class VoiceLoop;
 
 // The whole audio pipeline, assembled: openWakeWord, whisper.cpp, Piper, the
 // microphone and the VoiceLoop. The host provides where speech is played (X-Plane
-// or the speakers) and the state machine.
+// or the speakers), the state machine and, optionally, what to answer a
+// request with (without a Responder the loop echoes the transcript).
 //
 // Loading takes a second or two (the whisper model), so start() does it on a
 // background thread and the host keeps running; status() says how far it got.
 class VoicePipeline {
 public:
-  VoicePipeline(AudioOutput &output, state::StateMachine &machine);
+  VoicePipeline(AudioOutput &output, state::StateMachine &machine,
+                Responder *responder = nullptr);
   ~VoicePipeline();
 
   VoicePipeline(const VoicePipeline &) = delete;
@@ -44,6 +46,8 @@ public:
   void request_listen();
   void request_cancel();
   std::string last_transcript() const;
+  // What is being said now, for the panel.
+  SpeechProgress speech_progress() const;
 
 private:
   void load(AudioConfig config, std::string models_dir);
@@ -51,6 +55,7 @@ private:
 
   AudioOutput &output_;
   state::StateMachine &machine_;
+  Responder *responder_;
   std::unique_ptr<OpenWakeWord> wake_;
   std::unique_ptr<WhisperStt> stt_;
   std::unique_ptr<PiperTts> tts_;

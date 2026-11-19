@@ -284,27 +284,53 @@ void draw_tabs(const Palette &p, PanelViewState &state) {
 
 // --- home tab ------------------------------------------------------------------
 
+void status_line(const char *label, const std::string &value) {
+  ImGui::TextDisabled("%s", label);
+  ImGui::TextWrapped("%s", value.empty() ? "-" : value.c_str());
+  ImGui::Spacing();
+}
+
 void draw_home_tab(const Palette &p, PanelSession &session) {
-  ImGui::TextDisabled("Airport");
-  const std::string &airport = session.airport();
-  ImGui::TextUnformatted(airport.empty() ? "-" : airport.c_str());
+  ImGui::TextDisabled("Flight plan");
+  ImGui::SameLine();
+  ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 4.0f);
+  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 2.0f));
+  if (ImGui::SmallButton("Refresh##simbrief")) session.request_simbrief_refresh();
+  ImGui::PopStyleVar();
+  ImGui::TextWrapped("%s", session.flight_plan_status().empty()
+                               ? "-"
+                               : session.flight_plan_status().c_str());
   ImGui::Spacing();
 
-  ImGui::TextDisabled("Voice");
-  const std::string &voice = session.audio_status();
-  ImGui::TextUnformatted(voice.empty() ? "-" : voice.c_str());
-  ImGui::Spacing();
+  status_line("Briefings", session.briefings_status());
+  status_line("Voice", session.audio_status());
+  if (!session.last_heard().empty()) status_line("Last heard", session.last_heard());
 
-  ImGui::TextDisabled("Briefing");
+  // While speaking, the box follows the voice: what was said, dimmed, and the
+  // sentence playing now, kept in view.
+  const bool speaking = !session.speaking_current().empty();
+  ImGui::TextDisabled(speaking ? "Speaking" : "Briefing");
   ImGui::PushStyleColor(ImGuiCol_Text, vec(p.text_feed));
   if (ImGui::BeginChild("##briefing", ImVec2(0.0f, 0.0f),
                         ImGuiChildFlags_Borders,
                         ImGuiWindowFlags_None)) {
-    const std::string &text = session.briefing_text();
-    if (text.empty()) {
-      ImGui::TextDisabled("Waiting for a briefing request.");
+    if (speaking) {
+      if (!session.speaking_spoken().empty()) {
+        ImGui::PushStyleColor(ImGuiCol_Text, vec(p.text_dim));
+        ImGui::TextWrapped("%s", session.speaking_spoken().c_str());
+        ImGui::PopStyleColor();
+      }
+      ImGui::PushStyleColor(ImGuiCol_Text, vec(p.accent));
+      ImGui::TextWrapped("%s", session.speaking_current().c_str());
+      ImGui::PopStyleColor();
+      ImGui::SetScrollHereY(1.0f);
     } else {
-      ImGui::TextWrapped("%s", text.c_str());
+      const std::string &text = session.briefing_text();
+      if (text.empty()) {
+        ImGui::TextDisabled("Waiting for a briefing request.");
+      } else {
+        ImGui::TextWrapped("%s", text.c_str());
+      }
     }
   }
   ImGui::EndChild();
@@ -325,6 +351,9 @@ void text_field(const char *label, const char *id, char *buffer, size_t size,
 
 void draw_settings_tab(const Palette &p, PanelSession &session,
                        PanelViewState &state, const PanelFrame &frame) {
+  text_field("SimBrief username or pilot ID", "##simbrief", state.simbrief_pilot,
+             sizeof(state.simbrief_pilot),
+             [&](const char *v) { session.set_simbrief_pilot(v); });
   text_field("Wake word", "##wake", state.wake_word, sizeof(state.wake_word),
              [&](const char *v) { session.set_wake_word(v); });
   text_field("LLM endpoint", "##llm", state.llm_endpoint,

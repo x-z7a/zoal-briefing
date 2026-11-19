@@ -7,7 +7,7 @@
 #include <vector>
 #include <optional>
 
-namespace zoal_briefing::llm {
+namespace zoal_briefing::llm_bridge {
 
 enum class Mode {
     API,
@@ -57,4 +57,4 @@ private:
     mutable std::mutex mtx_;
 };
 
-} // namespace zoal_briefing::llm
+} // namespace zoal_briefing::llm_bridge

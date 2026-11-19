@@ -53,7 +53,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential
+          sudo apt-get install -y build-essential libcurl4-openssl-dev
 
       - name: Install Windows build dependencies
         if: runner.os == 'Windows'

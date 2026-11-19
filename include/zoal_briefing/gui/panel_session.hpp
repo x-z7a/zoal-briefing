@@ -71,6 +71,38 @@ public:
   void set_model_name(const std::string &model);
   std::string model_name() const;
 
+  // SimBrief username or pilot ID ("simbrief": {"pilot": ...} in the file).
+  // The field edits simbrief_pilot(); the plugin acts on saved_simbrief_pilot(),
+  // the value as of the last load or save.
+  void set_simbrief_pilot(const std::string &pilot) { simbrief_pilot_ = pilot; }
+  const std::string &simbrief_pilot() const { return simbrief_pilot_; }
+  const std::string &saved_simbrief_pilot() const { return saved_simbrief_pilot_; }
+
+  // The Refresh button: the plugin takes the request once.
+  void request_simbrief_refresh() { simbrief_refresh_requested_ = true; }
+  bool take_simbrief_refresh() {
+    const bool requested = simbrief_refresh_requested_;
+    simbrief_refresh_requested_ = false;
+    return requested;
+  }
+
+  // Lines the plugin fills from the briefing service.
+  void set_flight_plan_status(const std::string &s) { flight_plan_status_ = s; }
+  const std::string &flight_plan_status() const { return flight_plan_status_; }
+  void set_briefings_status(const std::string &s) { briefings_status_ = s; }
+  const std::string &briefings_status() const { return briefings_status_; }
+  void set_last_heard(const std::string &s) { last_heard_ = s; }
+  const std::string &last_heard() const { return last_heard_; }
+
+  // While a reply is spoken: what was said so far and the sentence playing
+  // now. The briefing box follows along; empty when nothing is being said.
+  void set_speaking(const std::string &spoken, const std::string &current) {
+    speaking_spoken_ = spoken;
+    speaking_current_ = current;
+  }
+  const std::string &speaking_spoken() const { return speaking_spoken_; }
+  const std::string &speaking_current() const { return speaking_current_; }
+
   // Connection / bridge state — needed by panel_view.
   bool reachable() const { return connected_; }
 
@@ -91,6 +123,14 @@ private:
   std::string audio_status_;
   std::string llm_endpoint_;
   std::string model_name_;
+  std::string simbrief_pilot_;
+  std::string saved_simbrief_pilot_;
+  bool simbrief_refresh_requested_ = false;
+  std::string flight_plan_status_;
+  std::string briefings_status_;
+  std::string last_heard_;
+  std::string speaking_spoken_;
+  std::string speaking_current_;
 };
 
 } // namespace zoal_briefing::gui

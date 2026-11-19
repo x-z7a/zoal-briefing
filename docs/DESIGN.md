@@ -68,13 +68,16 @@ One folder per component, the same under `include/zoal_briefing/` and `src/`. Th
 
 | Folder | Contents |
 |---|---|
-| `xplane/` | `plugin.cpp` (the `XPlugin*` entry points and the flight loop) and `plugin_state` (plugin-wide state). Wiring only. |
+| `xplane/` | `plugin.cpp` (the `XPlugin*` entry points and the flight loop), `plugin_state` (plugin-wide state) and `briefing_responder` (answers the voice loop from the SimBrief plan and its briefings; SDK-free, in the core). Wiring only. |
 | `gui/` | All UI: the SDK-free session, theme and view, plus the X-Plane ↔ ImGui bridge (`imgui_window`) and the panel window. |
 | `audio/` | The audio pipeline. At its root: `types` (clip + the stage interfaces), `config`, `voice_loop` (the conductor), `voice_pipeline` (assembly) and, src-only, `miniaudio` (set up once). One subfolder per stage, in pipeline order: `input/` (mic, sample ring, endpointer), `wake/` (`openwakeword`), `stt/` (`whisper_stt`), `tts/` (`piper_tts`), `output/` (`xplane_bus`, `speaker`). Engine implementations are named after their engine. |
-| `simbrief/`, `intent_parser/`, `llm_bridge/`, `cache_builder/`, `data_types/`, `state_machine/` | As named. |
+| `simbrief/` | `ofp` (OFP JSON → `fp::FlightPlan`), `client` (fetch the latest OFP), `plan_watcher` (polls SimBrief, keeps the current plan and its on-disk cache, hands each new plan on). |
+| `llm_bridge/` | Everything that talks to an LLM: `ollama_client` (the interim hardcoded backend), `briefing_prompts` (flight context, prompts, cleanup for speech), `briefing_generator` (the three briefings per plan, on a worker thread), and the older `api_mode`/`cli_mode`/`fallback_chain`/`llm_bridge` stubs. |
+| `util/` | Transport with no domain knowledge: `http_client` (interface; `curl_http_client` where libcurl is found, else `no_http_client`, in the `zoal_briefing_http` library). Service clients live with the component that owns the data, not here. |
+| `intent_parser/`, `cache_builder/`, `data_types/`, `state_machine/` | As named. |
 | `log.hpp`, `main_thread_queue.hpp` | Cross-cutting, at the top level. |
 
-Not yet aligned with the folder-equals-namespace rule: `intent_parser` (`intent`), `llm_bridge` (`llm`), `state_machine` (`state`), `cache_builder` and `data_types` (several namespaces each).
+Not yet aligned with the folder-equals-namespace rule: `intent_parser` (`intent`), `state_machine` (`state`), `cache_builder` and `data_types` (several namespaces each).
 
 ### 3.1 Working
 
@@ -89,6 +92,7 @@ Not yet aligned with the folder-equals-namespace rule: `intent_parser` (`intent`
 | State machine | `state_machine/*` | Transition table; refused transitions logged; every change logged as `[state] FROM -> TO: reason`; callbacks run outside the lock. |
 | Logging + main-thread queue | `log.hpp`, `main_thread_queue.hpp` | The one logger: thread-safe, SDK-free, `[zoal-briefing] [component] message`. Its sink is stderr by default; the plugin installs one that sends lines from any thread to Log.txt (`XPLMDebugString`) through the queue the flight loop drains. |
 | Audio pipeline (echo mode) | `audio/**` | See §5.9. openWakeWord on ONNX Runtime, whisper.cpp (Metal), Piper via sherpa-onnx, miniaudio capture, `XPLMPlayPCMOnBus` playback. macOS only so far. |
+| SimBrief → briefings (interim) | `simbrief/plan_watcher`, `llm_bridge/briefing_generator`, `xplane/briefing_responder`, `util/http_client` | See §5.6. `PlanWatcher` polls the latest OFP (every 120 s, on Refresh, on plane load) and hands a new `request_id` to `BriefingGenerator`, which generates four briefings in order (pre-flight, pre-departure, descent and arrival, approach and landing) with a hardcoded, streamed Ollama (`llm_bridge/ollama_client`, stand-in for §5.7); a briefing's text grows while it is written. The OFP and the finished briefings are cached in `Output/preferences/zoal-briefing-ofp.json` and `zoal-briefing-briefings.json` (keyed by OFP and `kPromptVersion`). `BriefingResponder` picks the briefing by keyword (approach/landing, descent/arrival, departure/takeoff/taxi, else pre-flight) until the intent parser exists, and answers STREAMING while it is being written, so the voice speaks it as it arrives; "stand by" before its first sentence. HTTP is libcurl (macOS/Linux); Windows builds without HTTP for now. `briefing_check` runs the path outside X-Plane. |
 
 ### 3.2 Stubs and prototypes
 
@@ -99,7 +103,6 @@ Not yet aligned with the folder-equals-namespace rule: `intent_parser` (`intent`
 | LLM API mode | `llm_bridge/api_mode.cpp` | Has a libcurl POST in OpenAI/Ollama format and a response parser, but it is not linked to curl, the streaming method is declared but never defined, and the health check is wrong. |
 | LLM CLI mode | `llm_bridge/cli_mode.cpp` | Returns `nullopt`. |
 | LLM bridge / fallback | `llm_bridge/llm_bridge.cpp`, `fallback_chain.cpp` | The chain is set up, but it has a lifetime bug and the template fallback always "succeeds" (§4). `llm_bridge_router.cpp` is an empty placeholder. |
-| SimBrief client | `simbrief/*` | Does not compile and is not in CMake. It scans for `.pln` files, which is not how SimBrief delivers plans. |
 | Airport / apt.dat | `data_types/airport.*`, `cache_builder/apt_dat_parser.*` | Two empty parsers. |
 | CIFP | `data_types/cifp.*`, `cache_builder/cifp_parser.*` | Two empty parsers. |
 | GRIB | `cache_builder/grib_parser.*`, `grib_file_parser.*` | One is empty. The other reads binary GRIB as text lines (a mock). |
@@ -112,7 +115,7 @@ Not yet aligned with the folder-equals-namespace rule: `intent_parser` (`intent`
 
 ### 3.3 Tests
 
-`make test` runs 8 SDK-free tests (it used to build them without running them): the original four (`metar_parser_tests`, `grib_parser_tests` (mock), `weather_summary_tests`, `intent_parser_tests`) plus `state_machine_tests`, `audio_config_tests`, `endpointer_tests` and `voice_loop_tests`. The voice-loop tests drive the whole echo cycle with fakes. New tests use `test/check.hpp`, because `assert` is compiled out in the Release builds `make test` uses. With the audio pipeline built and the models downloaded, `voice_selftest` (`make voice-check`) also runs the real engines on real models. Three old files are still unregistered or do not compile (`apt_dat_parser_test.cpp`, `llm_bridge_test.cpp`, `simbrief_test.cpp`), and tests are still split across `test/` and `tests/`.
+`make test` runs 12 SDK-free tests (it used to build them without running them): the original four (`metar_parser_tests`, `grib_parser_tests` (mock), `weather_summary_tests`, `intent_parser_tests`) plus `state_machine_tests`, `audio_config_tests`, `endpointer_tests`, `voice_loop_tests`, `sentences_tests`, `simbrief_tests`, `briefing_generator_tests` and `briefing_responder_tests`. The voice-loop tests drive the whole echo cycle with fakes. New tests use `test/check.hpp`, because `assert` is compiled out in the Release builds `make test` uses. With the audio pipeline built and the models downloaded, `voice_selftest` (`make voice-check`) also runs the real engines on real models. `simbrief_tests` cover the OFP mapping (against `test/fixtures/simbrief_ofp.json`, hand-written to SimBrief's schema), the fetch and the plan watcher; `briefing_generator_tests` the prompts, the Ollama request/response and the generator; `briefing_responder_tests` what the pilot hears in each case. All use fake servers. Two old files are still unregistered or do not compile (`apt_dat_parser_test.cpp`, `llm_bridge_test.cpp`), and tests are still split across `test/` and `tests/`.
 
 ---
 
@@ -132,7 +135,6 @@ Fix each of these as part of the component that owns it. Do not fix them in a bi
 - `AUTO` mode probes `ApiMode("")` (an empty endpoint) with a real completion request. This adds a full LLM round-trip to every request.
 - The `cached_template` fallback always returns text, so the chain never reports failure, and `voice_prompt` can never run.
 - `api_mode.cpp`: the header declares member `health_check`/`parse_response`, but the .cpp defines unrelated static functions. The health check `HEAD`s `<chat-completions-url>/health`. The Anthropic request shape and headers (`x-api-key`, `anthropic-version`) are missing. libcurl is not in `target_link_libraries`.
-- `SimBrief::Client` uses namespace `Fp` (should be `fp`), calls `trigger_weather_refresh` with the wrong arity, and reads `getenv("XPLANE_HOME")` unguarded (null → UB).
 - `CacheBuilder` never joins `worker_`, so `std::terminate` runs on destruction.
 - The default CLI command `claude --output-format json` has no `-p`, so it would start an interactive session.
 
@@ -228,7 +230,7 @@ IDLE ──wake word──▶ WAKE_DETECTED ──"Yes, captain." played──�
 | STT | `stt/whisper_stt.*` | whisper.cpp `small.en` q5_1, Metal; about 0.14 s for a short request. |
 | TTS | `tts/piper_tts.*` | Piper `en_US-lessac-medium` via sherpa-onnx's C API. |
 | Mic | `input/mic.*`, `input/sample_ring.hpp` | miniaudio capture at 16 kHz mono into a lock-free ring (`miniaudio.hpp` configures miniaudio once for the mic and the speaker). |
-| Conductor | `voice_loop.*` | One worker thread owns every engine. The mic is ignored while we speak, so the plugin never hears itself. Playback that never reports completion times out. |
+| Conductor | `voice_loop.*` | One worker thread owns every engine. Speech goes a sentence at a time (`tts/sentences.*`): the first sentence plays as soon as it is synthesized, the next is synthesized while it plays, and a STREAMING reply is spoken as it is written. The panel follows along (`speech_progress()`). The mic is ignored while we speak, so the plugin never hears itself. Playback that never reports completion times out. |
 | Assembly | `voice_pipeline.*` | Loads models on a background thread at plugin enable; `status()` goes to the panel's "Voice" line. |
 | Speech output | `output/xplane_bus.*`, `output/speaker.*` | `XPlaneBus`: `XPLMPlayPCMOnBus` on the main thread, bus from `audio.output_bus` (default `ui`). `Speaker`: the computer's speakers via miniaudio, for the dev tool. |
 

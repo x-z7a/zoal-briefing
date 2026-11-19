@@ -7,7 +7,7 @@
 
 using json = nlohmann::json;
 
-namespace zoal_briefing::llm {
+namespace zoal_briefing::llm_bridge {
 
 // ── Helper: curl write callback to string buffer ────────────────────────────
 static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* user) {
@@ -167,4 +167,4 @@ std::optional<std::string> ApiMode::send_completion(
     return parse_response(response_body);
 }
 
-} // namespace zoal_briefing::llm
+} // namespace zoal_briefing::llm_bridge

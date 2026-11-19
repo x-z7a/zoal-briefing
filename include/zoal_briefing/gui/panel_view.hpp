@@ -33,6 +33,7 @@ struct PanelViewState {
   char wake_word[64] = {};
   char llm_endpoint[512] = {};
   char model_name[128] = {};
+  char simbrief_pilot[64] = {};
   
   // Track whether settings have been loaded from disk.
   bool settings_loaded = false;

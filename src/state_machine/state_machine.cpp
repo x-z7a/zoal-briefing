@@ -30,7 +30,7 @@ bool StateMachine::allowed(State from, State to) {
   case State::LISTENING:
     return to == State::STT_COMPLETE;
   case State::STT_COMPLETE:
-    return to == State::PARSING || to == State::PLAYBACK;
+    return to == State::PARSING || to == State::PLAYBACK || to == State::BRIEFING_GENERATING;
   case State::PARSING:
     return to == State::DATA_READY;
   case State::DATA_READY:

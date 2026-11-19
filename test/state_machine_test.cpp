@@ -48,6 +48,8 @@ int main() {
   CHECK(StateMachine::allowed(State::STT_COMPLETE, State::PARSING));
   CHECK(StateMachine::allowed(State::PARSING, State::DATA_READY));
   CHECK(StateMachine::allowed(State::BRIEFING_GENERATING, State::PLAYBACK));
+  // Waiting on a briefing that is already being generated.
+  CHECK(StateMachine::allowed(State::STT_COMPLETE, State::BRIEFING_GENERATING));
   CHECK(!StateMachine::allowed(State::WAKE_DETECTED, State::PLAYBACK));
 
   // Callbacks run outside the lock, so they may transition again.

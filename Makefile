@@ -94,7 +94,7 @@ else
 CMAKE_GENERATOR :=
 endif
 
-.PHONY: help test lint plugin freetype fonts audio-deps models voice-check voice-live install install-plugin release clean
+.PHONY: help test lint briefing-check plugin freetype fonts audio-deps models voice-check voice-live install install-plugin release clean
 
 .DEFAULT_GOAL := help
 
@@ -107,6 +107,7 @@ help:
 	@echo "  models          download the audio models into $(ZOAL_BRIEFING_MODELS)"
 	@echo "  voice-check     self-test the audio pipeline with the real models (no mic)"
 	@echo "  voice-live      run the wake word -> listen -> echo loop on mic + speakers"
+	@echo "  briefing-check  fetch PILOT's SimBrief OFP and generate its briefings (OFP=file instead)"
 	@echo "  install         build and install into X-Plane ($(LOCAL_XPLANE_PLUGIN_DIR))"
 	@echo "  install-plugin  same as install"
 	@echo "  release         assemble the release tree in dist/zoal-briefing"
@@ -138,6 +139,16 @@ lint:
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
 	cmake --build "$(BUILD_DIR)"
 	LINT_ALL="$(LINT_ALL)" "$(ROOT_DIR)/scripts/lint.sh"
+
+# The SimBrief -> LLM path outside X-Plane: PILOT=<SimBrief username or ID>,
+# or OFP=<saved OFP JSON>. ARGS=--no-llm prints only the flight context.
+briefing-check:
+	cmake -S . -B "$(BUILD_DIR)" $(CMAKE_GENERATOR) \
+		-DZoalBriefing_BUILD_TESTS=ON \
+		-DZoalBriefing_BUILD_PLUGIN=OFF \
+		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
+	cmake --build "$(BUILD_DIR)" --target briefing_check
+	"$(BUILD_DIR)/briefing_check" $(if $(OFP),--ofp "$(OFP)",$(PILOT)) $(ARGS)
 
 freetype:
 	ZOAL_BRIEFING_FREETYPE_SOURCE="$(ZOAL_BRIEFING_FREETYPE_SOURCE)" "$(ROOT_DIR)/scripts/ensure-freetype.sh"

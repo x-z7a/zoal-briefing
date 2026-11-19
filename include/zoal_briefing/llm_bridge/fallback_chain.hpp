@@ -9,7 +9,7 @@
 #include <chrono>
 #include <atomic>
 
-namespace zoal_briefing::llm {
+namespace zoal_briefing::llm_bridge {
 
 // Fallback chain for LLM bridge failures:
 //   API mode → CLI mode → cached template → voice prompt
@@ -35,6 +35,6 @@ private:
     mutable bool interrupted_ = false;
 };
 
-} // namespace zoal_briefing::llm
+} // namespace zoal_briefing::llm_bridge
 
 #endif // ZOAL_BRIEFING_FALLBACK_CHAIN_HPP

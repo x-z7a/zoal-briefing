@@ -1,6 +1,6 @@
 #include "zoal_briefing/llm_bridge/cli_mode.hpp"
 
-namespace zoal_briefing::llm {
+namespace zoal_briefing::llm_bridge {
 
 CliMode::CliMode(const std::string& command,
                  const std::vector<std::string>& env_tokens,
@@ -19,4 +19,4 @@ std::optional<std::string> CliMode::execute(
     return std::nullopt;
 }
 
-} // namespace zoal_briefing::llm
+} // namespace zoal_briefing::llm_bridge

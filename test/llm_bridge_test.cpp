@@ -2,8 +2,8 @@
 #include <cassert>
 #include <iostream>
 
-using zoal_briefing::llm::LlmBridge;
-using zoal_briefing::llm::Mode;
+using zoal_briefing::llm_bridge::LlmBridge;
+using zoal_briefing::llm_bridge::Mode;
 
 int main() {
     // Test API mode configuration.

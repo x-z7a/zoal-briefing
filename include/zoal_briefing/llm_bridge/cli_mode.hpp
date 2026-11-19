@@ -5,7 +5,7 @@
 #include <vector>
 #include <optional>
 
-namespace zoal_briefing::llm {
+namespace zoal_briefing::llm_bridge {
 
 // Process spawn for Claude, Copilot, Codex, or custom LLM CLIs.
 class CliMode {
@@ -24,6 +24,6 @@ private:
     std::string prompt_template_path_;
 };
 
-} // namespace zoal_briefing::llm
+} // namespace zoal_briefing::llm_bridge
 
 #endif // ZOAL_BRIEFING_CLI_MODE_HPP

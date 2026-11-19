@@ -124,6 +124,11 @@ void PanelSession::load_settings() {
       if (j.contains("llm_endpoint")) llm_endpoint_ = j["llm_endpoint"].get<std::string>();
       if (j.contains("model_name")) model_name_ = j["model_name"].get<std::string>();
       if (j.contains("theme")) theme_name_ = j["theme"].get<std::string>();
+      if (j.contains("simbrief") && j["simbrief"].is_object() &&
+          j["simbrief"].contains("pilot") && j["simbrief"]["pilot"].is_string()) {
+        simbrief_pilot_ = j["simbrief"]["pilot"].get<std::string>();
+        saved_simbrief_pilot_ = simbrief_pilot_;
+      }
       
       settings_loaded_ = true;
     } catch (const std::exception &e) {
@@ -156,11 +161,14 @@ void PanelSession::save_settings() {
   j["llm_endpoint"] = llm_endpoint_;
   j["model_name"] = model_name_;
   j["theme"] = theme_name_;
+  if (!j.contains("simbrief") || !j["simbrief"].is_object()) j["simbrief"] = json::object();
+  j["simbrief"]["pilot"] = simbrief_pilot_;
   
   std::ofstream file(path);
   if (file.is_open()) {
     file << j.dump(2);
     file.close();
+    saved_simbrief_pilot_ = simbrief_pilot_;
   } else {
     std::cerr << "[panel] WARNING: could not write settings to " << path << std::endl;
   }
