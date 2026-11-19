@@ -280,6 +280,7 @@ void VoiceLoop::begin_streaming(const std::string &text, const std::string &reas
 // --- speech, a sentence at a time ----------------------------------------------
 
 void VoiceLoop::say(const std::string &text, bool complete) {
+  tts_.begin_utterance(); // a voice change waits for this, never mid-reply
   utterance_ = Utterance{};
   utterance_.text = text;
   utterance_.complete = complete;

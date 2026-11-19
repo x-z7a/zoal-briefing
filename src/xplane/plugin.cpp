@@ -166,6 +166,10 @@ void start_voice() {
                                                        g_responder.get());
   zb::log::info("plugin", "wake word \"" + config.wake_word + "\", speech on the " +
                               config.output_bus + " bus");
+  if (g_plans) {
+    const auto plan = g_plans->status().plan;
+    if (plan) g_voice->set_flight(plan->request_id);
+  }
   g_voice->start(config, models_dir);
 #else
   zb::log::warn("plugin", "built without the audio pipeline (ZoalBriefing_WITH_AUDIO=OFF)");
@@ -211,6 +215,10 @@ void update_briefings_panel(zb::gui::PanelSession &session) {
   g_briefings_version = briefings_version;
 
   const zb::simbrief::WatchStatus plan = g_plans->status();
+#ifdef ZOAL_BRIEFING_HAS_AUDIO
+  // One copilot per flight: a new plan is a new flight, and a new voice.
+  if (g_voice && plan.plan) g_voice->set_flight(plan.plan->request_id);
+#endif
   session.set_flight_plan_status(plan.fetching ? plan.text + " (checking...)" : plan.text);
   if (!plan.plan) {
     session.set_briefings_status("waiting for a flight plan");

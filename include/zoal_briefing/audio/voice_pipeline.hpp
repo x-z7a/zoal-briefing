@@ -16,7 +16,7 @@ namespace zoal_briefing::audio {
 
 class OpenWakeWord;
 class WhisperStt;
-class PiperTts;
+class VoicePool;
 class Mic;
 
 // The whole audio pipeline, assembled: openWakeWord, whisper.cpp, Piper, the
@@ -43,6 +43,10 @@ public:
   // "loading", "listening for \"hey jarvis\"", or the error that stopped it.
   std::string status() const;
 
+  // The flight being flown (SimBrief's request_id): its copilot's voice. Any
+  // thread, any time, also before loading has finished.
+  void set_flight(const std::string &flight_id);
+
   void request_listen();
   void request_cancel();
   std::string last_transcript() const;
@@ -58,12 +62,14 @@ private:
   Responder *responder_;
   std::unique_ptr<OpenWakeWord> wake_;
   std::unique_ptr<WhisperStt> stt_;
-  std::unique_ptr<PiperTts> tts_;
+  std::unique_ptr<VoicePool> tts_;
   std::unique_ptr<VoiceLoop> loop_;
   std::unique_ptr<Mic> mic_;
   std::thread loader_;
   std::atomic<bool> ready_{false};
   std::atomic<bool> stopping_{false};
+  std::mutex flight_mutex_; // guards tts_ (set by the loader) and flight_
+  std::string flight_;
   mutable std::mutex status_mutex_;
   std::string status_ = "stopped";
 };

@@ -57,6 +57,9 @@ class Synthesizer {
 public:
   virtual ~Synthesizer() = default;
   virtual std::optional<PcmClip> synthesize(const std::string &text) = 0;
+  // A new utterance starts. A synthesizer with several voices switches here,
+  // if it is going to, so one reply is never spoken in two voices.
+  virtual void begin_utterance() {}
 };
 
 // What the loop says back to a transcribed request. Without one, the loop

@@ -125,6 +125,7 @@ add_library(zoal_briefing_core STATIC
     src/audio/config.cpp
     src/audio/input/endpointer.cpp
     src/audio/tts/sentences.cpp
+    src/audio/tts/voice_pool.cpp
     src/audio/voice_loop.cpp
 
     # Panel view state & session (shared with plugin module)
@@ -425,6 +426,7 @@ if(ZoalBriefing_BUILD_TESTS)
     zb_add_test(endpointer_tests test/endpointer_test.cpp)
     zb_add_test(voice_loop_tests test/voice_loop_test.cpp)
     zb_add_test(sentences_tests test/sentences_test.cpp)
+    zb_add_test(voice_pool_tests test/voice_pool_test.cpp)
     zb_add_test(simbrief_tests test/simbrief_test.cpp)
     target_compile_definitions(simbrief_tests PRIVATE
         ZB_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures")

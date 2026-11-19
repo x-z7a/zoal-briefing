@@ -45,7 +45,16 @@ AudioConfig audio_config_from_json(const nlohmann::json &root) {
   read_text(a, "say_again", c.say_again);
   read_text(a, "models_dir", c.models_dir);
   read_text(a, "whisper_model", c.whisper_model);
-  read_text(a, "piper_voice", c.piper_voice);
+  std::string one_voice;
+  read_text(a, "piper_voice", one_voice);
+  if (!one_voice.empty()) c.piper_voices = {one_voice};
+  if (const auto voices = a.find("piper_voices"); voices != a.end() && voices->is_array()) {
+    std::vector<std::string> list;
+    for (const auto &v : *voices) {
+      if (v.is_string() && !v.get<std::string>().empty()) list.push_back(v.get<std::string>());
+    }
+    if (!list.empty()) c.piper_voices = std::move(list);
+  }
   read(a, "input_device", c.input_device);
   read_text(a, "output_bus", c.output_bus);
   read(a, "max_record_seconds", c.max_record_seconds);

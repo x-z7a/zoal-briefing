@@ -3,6 +3,7 @@
 #include "zoal_briefing/audio/input/mic.hpp"
 #include "zoal_briefing/audio/stt/whisper_stt.hpp"
 #include "zoal_briefing/audio/tts/piper_tts.hpp"
+#include "zoal_briefing/audio/tts/voice_pool.hpp"
 #include "zoal_briefing/audio/voice_loop.hpp"
 #include "zoal_briefing/audio/wake/openwakeword.hpp"
 #include "zoal_briefing/log.hpp"
@@ -98,13 +99,27 @@ void VoicePipeline::load(AudioConfig config, std::string models_dir) {
   log::info(kLog, "whisper loaded (" + config.whisper_model + ", " + clock.lap() + ")");
   if (stopping_) return;
 
-  auto tts = std::make_unique<PiperTts>(models_dir + "/" + config.piper_voice);
-  if (!tts->load(error)) {
-    set_status("text to speech: " + error);
+  // Every voice that loads joins the pool; a missing one is skipped.
+  auto tts = std::make_unique<VoicePool>();
+  for (const std::string &voice : config.piper_voices) {
+    auto piper = std::make_unique<PiperTts>((fs::path(models_dir) / voice).string());
+    if (!piper->load(error)) {
+      std::string why = "skipping Piper voice ";
+      why += voice;
+      why += ": ";
+      why += error;
+      log::warn(kLog, why);
+      continue;
+    }
+    tts->add(fs::path(voice).filename().string(), std::move(piper));
+    if (stopping_) return;
+  }
+  if (tts->size() == 0) {
+    set_status("text to speech: no Piper voice loaded from " + models_dir + "/piper");
     log::error(kLog, status());
     return;
   }
-  log::info(kLog, "Piper voice loaded (" + config.piper_voice + ", " + clock.lap() + ")");
+  log::info(kLog, std::to_string(tts->size()) + " Piper voice(s) loaded (" + clock.lap() + ")");
   if (stopping_) return;
 
   VoiceLoopConfig loop_config;
@@ -116,7 +131,11 @@ void VoicePipeline::load(AudioConfig config, std::string models_dir) {
 
   wake_ = std::move(wake);
   stt_ = std::move(stt);
-  tts_ = std::move(tts);
+  {
+    std::lock_guard<std::mutex> lock(flight_mutex_);
+    tts_ = std::move(tts);
+    tts_->set_flight(flight_); // the plan may have arrived while we loaded
+  }
   loop_ = std::make_unique<VoiceLoop>(loop_config, *wake_, *stt_, *tts_, output_, machine_,
                                       responder_);
   loop_->start();
@@ -147,7 +166,10 @@ void VoicePipeline::stop() {
   if (loop_) loop_->stop();
   mic_.reset();
   loop_.reset();
-  tts_.reset();
+  {
+    std::lock_guard<std::mutex> lock(flight_mutex_);
+    tts_.reset();
+  }
   stt_.reset();
   wake_.reset();
   if (was_ready) {
@@ -164,6 +186,12 @@ std::string VoicePipeline::status() const {
 void VoicePipeline::set_status(std::string status) {
   std::lock_guard<std::mutex> lock(status_mutex_);
   status_ = std::move(status);
+}
+
+void VoicePipeline::set_flight(const std::string &flight_id) {
+  std::lock_guard<std::mutex> lock(flight_mutex_);
+  flight_ = flight_id;
+  if (tts_) tts_->set_flight(flight_id);
 }
 
 void VoicePipeline::request_listen() {

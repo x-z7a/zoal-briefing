@@ -69,7 +69,7 @@ int selftest(const std::string &models_dir) {
   AudioConfig config;
   std::string error;
 
-  PiperTts tts(models_dir + "/" + config.piper_voice);
+  PiperTts tts(models_dir + "/" + config.piper_voices.front());
   const bool tts_ok = tts.load(error);
   check(tts_ok, "Piper voice loads" + (tts_ok ? "" : ": " + error));
   if (!tts_ok) return 1;
@@ -77,6 +77,20 @@ int selftest(const std::string &models_dir) {
   auto ack = tts.synthesize(config.acknowledgement);
   check(ack && ack->seconds() > 0.3, "TTS speaks \"" + config.acknowledgement + "\"" +
                                          (ack ? " (" + std::to_string(ack->seconds()).substr(0, 4) + " s)" : ""));
+
+  // Every voice in the pool loads and speaks (replies pick one at random).
+  for (const std::string &voice : config.piper_voices) {
+    PiperTts other((fs::path(models_dir) / voice).string());
+    std::string why;
+    const bool loaded = other.load(why);
+    const auto clip = loaded ? other.synthesize("Runway two eight left, cleared for takeoff.")
+                             : std::nullopt;
+    check(clip && clip->seconds() > 1.0,
+          "voice " + fs::path(voice).filename().string() +
+              (loaded ? (clip ? " speaks (" + std::to_string(clip->seconds()).substr(0, 4) + " s)"
+                              : " failed to speak")
+                      : ": " + why));
+  }
 
   // Wake word: every model present in openwakeword/, against its own phrase
   // and against a sentence that is not it.
@@ -248,7 +262,7 @@ int live(const std::string &models_dir, const std::string &config_path) {
 int say(const std::string &models_dir, const std::string &text) {
   AudioConfig config;
   std::string error;
-  PiperTts tts(models_dir + "/" + config.piper_voice);
+  PiperTts tts(models_dir + "/" + config.piper_voices.front());
   if (!tts.load(error)) {
     std::fprintf(stderr, "%s\n", error.c_str());
     return 1;

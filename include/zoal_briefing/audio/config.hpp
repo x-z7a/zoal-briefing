@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 #include <nlohmann/json_fwd.hpp>
 
@@ -27,7 +28,15 @@ struct AudioConfig {
   // host decides (the plugin uses <plugin>/models).
   std::string models_dir;
   std::string whisper_model = "whisper/ggml-small.en-q5_1.bin";
-  std::string piper_voice = "piper/vits-piper-en_US-lessac-medium";
+  // Piper voices: each flight plan gets one of them as its copilot (see
+  // VoicePool), a different one from the flight before. "audio":
+  // {"piper_voices": [...]} replaces the list; a single "piper_voice" still
+  // works and means just that one.
+  std::vector<std::string> piper_voices = {
+      "piper/vits-piper-en_US-lessac-medium",   "piper/vits-piper-en_US-ryan-medium",
+      "piper/vits-piper-en_US-amy-medium",      "piper/vits-piper-en_GB-alan-medium",
+      "piper/vits-piper-en_GB-jenny_dioco-medium",
+  };
 
   // Capture device: a substring of its name; empty is the system default.
   std::string input_device;

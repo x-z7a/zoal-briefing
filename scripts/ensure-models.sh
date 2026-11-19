@@ -7,7 +7,8 @@ set -euo pipefail
 #                  "hey jarvis" model, used until cookie_monster.onnx is trained
 #                  (docs/wake-word-training.md)
 #   whisper/       speech to text (small.en, 5-bit quantized)
-#   piper/         the text-to-speech voice (en_US lessac, sherpa-onnx packaging)
+#   piper/         the text-to-speech voices (sherpa-onnx packaging); each flight
+#                  plan gets one of them as its copilot
 #
 # A trained openwakeword/cookie_monster.onnx is yours to drop in; this script
 # leaves anything else in the folder alone.
