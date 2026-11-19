@@ -94,7 +94,7 @@ else
 CMAKE_GENERATOR :=
 endif
 
-.PHONY: help test plugin freetype fonts audio-deps models voice-check voice-live install install-plugin release clean
+.PHONY: help test lint plugin freetype fonts audio-deps models voice-check voice-live install install-plugin release clean
 
 .DEFAULT_GOAL := help
 
@@ -102,6 +102,7 @@ help:
 	@echo "zoal-briefing — X-Plane voice briefing plugin"
 	@echo
 	@echo "  test            build and run the SDK-free C++ core tests"
+	@echo "  lint            clang-tidy the changed .cpp files (LINT_ALL=1 for all)"
 	@echo "  plugin          build the .xpl (fetches the X-Plane SDK from GitHub releases)"
 	@echo "  models          download the audio models into $(ZOAL_BRIEFING_MODELS)"
 	@echo "  voice-check     self-test the audio pipeline with the real models (no mic)"
@@ -126,6 +127,17 @@ else
 	cmake --build "$(BUILD_DIR)"
 	ctest --test-dir "$(BUILD_DIR)" --output-on-failure
 endif
+
+# clang-tidy (see .clang-tidy) over changed files, with each build's
+# compile_commands.json.
+# Builds (does not run) the tests, so a failing test does not block linting.
+lint:
+	cmake -S . -B "$(BUILD_DIR)" $(CMAKE_GENERATOR) \
+		-DZoalBriefing_BUILD_TESTS=ON \
+		-DZoalBriefing_BUILD_PLUGIN=OFF \
+		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
+	cmake --build "$(BUILD_DIR)"
+	LINT_ALL="$(LINT_ALL)" "$(ROOT_DIR)/scripts/lint.sh"
 
 freetype:
 	ZOAL_BRIEFING_FREETYPE_SOURCE="$(ZOAL_BRIEFING_FREETYPE_SOURCE)" "$(ROOT_DIR)/scripts/ensure-freetype.sh"

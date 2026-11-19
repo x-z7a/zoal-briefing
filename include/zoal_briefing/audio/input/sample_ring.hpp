@@ -13,7 +13,7 @@ namespace zoal_briefing::audio {
 // When full, new samples are dropped and counted.
 class SampleRing {
 public:
-  explicit SampleRing(std::size_t capacity_pow2 = 1u << 19) // ~32 s at 16 kHz
+  explicit SampleRing(std::size_t capacity_pow2 = std::size_t{1} << 19u) // ~32 s at 16 kHz
       : buf_(capacity_pow2), mask_(capacity_pow2 - 1) {}
 
   // Producer only.

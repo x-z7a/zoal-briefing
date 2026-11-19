@@ -1,0 +1,5 @@
+# Tests: a throwing main is a failed test, and fixed seeds are deliberate.
+InheritParentConfig: true
+Checks: >
+  -bugprone-exception-escape,
+  -bugprone-random-generator-seed

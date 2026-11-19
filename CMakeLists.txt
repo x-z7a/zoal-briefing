@@ -9,6 +9,8 @@ project(zoal_briefing
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+# compile_commands.json in every build dir, for clang-tidy (scripts/lint.sh) and editors.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(ZoalBriefing_BUILD_TESTS    "Build unit tests (SDK-free)"   ON)
 option(ZoalBriefing_BUILD_PLUGIN   "Build X-Plane .xpl plugin"     OFF)

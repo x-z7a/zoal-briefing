@@ -1,0 +1,24 @@
+# Checks that find real bugs; style is .clang-format's job and conversions are
+# already -Wconversion's. Run with `make lint` (changed files) or
+# `make lint LINT_ALL=1`.
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-signed-bitwise,
+  performance-*,
+  -performance-enum-size,
+  concurrency-*,
+  -concurrency-mt-unsafe,
+  misc-redundant-expression,
+  misc-unused-using-decls,
+  modernize-use-override,
+  modernize-use-nullptr,
+  readability-container-size-empty,
+  readability-redundant-string-cstr,
+  readability-inconsistent-declaration-parameter-name
+# Our headers only: not nlohmann, ImGui, whisper.cpp or the SDK.
+HeaderFilterRegex: '.*/(src|include/zoal_briefing|test|tests|tools)/.*'
+WarningsAsErrors: ''

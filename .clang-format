@@ -1,0 +1,19 @@
+# House style, taken from the newer code (src/log.cpp, src/audio/, src/gui/).
+# Older scaffolding still uses 4-space indent; the format hook only touches
+# changed lines, so it converges as files are edited.
+BasedOnStyle: LLVM
+Language: Cpp
+Standard: c++17
+IndentWidth: 2
+ColumnLimit: 100
+PointerAlignment: Right
+ReferenceAlignment: Right
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortFunctionsOnASingleLine: All
+AllowShortCaseLabelsOnASingleLine: true
+AccessModifierOffset: -2
+NamespaceIndentation: None
+FixNamespaceComments: true
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+AllowShortLoopsOnASingleLine: true
