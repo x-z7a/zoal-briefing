@@ -8,7 +8,7 @@
 
 namespace zoal_briefing::audio {
 
-inline constexpr const char *kDefaultWakeWord = "cookie monster";
+inline constexpr const char *kDefaultWakeWord = "hey jarvis";
 
 // Audio settings, read from zoal-briefing.json: the top-level "wake_word"
 // (the panel edits it) and the "audio" object. Every field has a default, so
@@ -42,7 +42,7 @@ struct AudioConfig {
 
 AudioConfig audio_config_from_json(const nlohmann::json &root);
 
-// "Cookie Monster" -> "cookie_monster", the model file's stem.
+// "hey jarvis" -> "cookie_monster", the model file's stem.
 std::string wake_word_slug(const std::string &phrase);
 // "hey_jarvis_v0.1.onnx" -> "hey jarvis".
 std::string phrase_from_model_file(const std::string &file_name);

@@ -24,7 +24,7 @@ struct FakeWake : WakeDetector {
     return std::nullopt;
   }
   void reset() override { ++resets; }
-  std::string phrase() const override { return "cookie monster"; }
+  std::string phrase() const override { return "hey jarvis"; }
 };
 
 struct FakeStt : Transcriber {
@@ -150,7 +150,7 @@ int main() {
     }
     CHECK(states.size() == 5);
     if (states.size() == 5) {
-      CHECK(states[0].rfind("IDLE -> WAKE_DETECTED: heard \"cookie monster\" (score 0.90)", 0) == 0);
+      CHECK(states[0].rfind("IDLE -> WAKE_DETECTED: heard \"hey jarvis\" (score 0.90)", 0) == 0);
       CHECK(states[1].rfind("WAKE_DETECTED -> LISTENING", 0) == 0);
       CHECK(states[2].rfind("LISTENING -> STT_COMPLETE: \"departure briefing", 0) == 0);
       CHECK(states[3].rfind("STT_COMPLETE -> PLAYBACK", 0) == 0);

@@ -87,7 +87,7 @@ private:
   std::string airport_;
   std::string briefing_text_;
   std::string theme_name_ = "graphite";
-  std::string wake_word_ = "cookie monster";
+  std::string wake_word_ = "hey jarvis";
   std::string audio_status_;
   std::string llm_endpoint_;
   std::string model_name_;

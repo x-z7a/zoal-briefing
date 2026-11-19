@@ -10,7 +10,7 @@
 
 ## 1. Goal
 
-A pilot says the wake word **"Cookie Monster"** and asks for a briefing ("departure briefing for runway 28L"). The plugin:
+A pilot says the wake word **"hey jarvis"** and asks for a briefing ("departure briefing for runway 28L"). The plugin:
 
 1. captures the speech and transcribes it locally (whisper.cpp),
 2. works out the briefing type and its parameters (airport, runway, phase),
@@ -209,7 +209,7 @@ IDLE ──wake word──▶ WAKE_DETECTED ──"Yes, captain." played──�
 
 | Piece | File | Notes |
 |---|---|---|
-| Config | `audio_config.*` | `wake_word` (default **"cookie monster"**) and an `audio` block in `zoal-briefing.json`; every key has a default. |
+| Config | `audio_config.*` | `wake_word` (default **"hey jarvis"**) and an `audio` block in `zoal-briefing.json`; every key has a default. |
 | Wake word | `wake_word_engine.*` | A C++ port of openWakeWord's streaming pipeline on ONNX Runtime: 80 ms chunks → melspectrogram → 76-frame embedding → 16-feature classifier. Looks for `openwakeword/<slug>.onnx` (`cookie_monster.onnx`); falls back to `hey_jarvis_v0.1.onnx` with a warning until that is trained ([wake-word-training.md](wake-word-training.md)). Costs about 3.4 ms per 80 ms chunk. |
 | End of speech | `endpointer.*` | Energy detector over a noise floor measured while idle, so a pilot who talks the moment recording starts is not mistaken for noise. Defaults: 800 ms of silence ends the request, 4 s with no speech gives up, 8 s maximum. |
 | STT | `stt_transcriber.*` | whisper.cpp `small.en` q5_1, Metal; about 0.14 s for a short request. |
@@ -271,7 +271,7 @@ If we ever want actual code from zoal-atc, the options are to relicense that cod
 | # | Component | Section | Depends on | Milestone |
 |---|---|---|---|---|
 | 0 | Scaffolding: build, CI, plugin, panel | n/a | n/a | ✅ **Done.** Plugin loads, panel works. |
-| 0a | Audio pipeline, echo mode (wake word, STT, TTS, state logging) | §5.9 | 0 | ✅ **Done** on macOS; "cookie monster" model still to train. |
+| 0a | Audio pipeline, echo mode (wake word, STT, TTS, state logging) | §5.9 | 0 | ✅ **Done** on macOS; "hey jarvis" model still to train. |
 | 1 | Foundation: config, task queue, tests | §5.1 | 0 | One config file, all tests in CI |
 | 2 | State machine + typed request on panel | §5.2 | 1 | End-to-end fake briefing from text |
 | 3 | Intent parser | §5.3 | 2 | Typed request → `IntentResult` |
@@ -283,7 +283,7 @@ If we ever want actual code from zoal-atc, the options are to relicense that cod
 | 9 | LLM bridge: CLI mode + routing | §5.7 | 8 | Fallback chain verified |
 | 10 | Speak briefings by section (TTS chunking, stop/skip) | §5.9 | 8 | Briefing spoken in-sim |
 | 11 | Hook the transcript into the intent parser | §5.3, §5.9 | 3 | Spoken request → briefing |
-| 12 | Train "cookie monster"; audio on Windows/Linux | §5.9 | 0a | Hands-free on every platform |
+| 12 | Train "hey jarvis"; audio on Windows/Linux | §5.9 | 0a | Hands-free on every platform |
 | 13 | Procedures (CIFP), optional | §5.10 | 4 | SID/STAR named and validated |
 
 The audio pipeline moved to the front (0a) so the hardest-to-debug part was proven first. The rest of the order keeps the plugin usable after every step: from step 7 onward, every later component improves a briefing that already works end to end.

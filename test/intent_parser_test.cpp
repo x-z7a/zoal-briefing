@@ -9,7 +9,7 @@ int main() {
     IntentParser parser;
 
     // Test dispatch intent.
-    auto result = parser.parse("Cookie Monster, I need a dispatch briefing for KSFO");
+    auto result = parser.parse("hey jarvis, I need a dispatch briefing for KSFO");
     assert(result.confirmed);
     std::cout << "PASS: Parses dispatch intent\n";
 

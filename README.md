@@ -1,6 +1,6 @@
 # BriefingMaster — Voice-Driven Aviation Briefing System for X-Plane
 
-**BriefingMaster** is a voice-driven dispatch/departure/arrival/landing briefing system that activates via the wake word **"Cookie Monster"**, captures pilot speech, transcribes it with Whisper, routes intent via keyword parsing, aggregates context from cached airport/SID/STAR/weather data and SimBrief flight plans, generates a structured briefing through a dual-path LLM bridge (API or CLI), and delivers it audibly via Piper TTS into the X-Plane com system.
+**BriefingMaster** is a voice-driven dispatch/departure/arrival/landing briefing system that activates via the wake word **"hey jarvis"**, captures pilot speech, transcribes it with Whisper, routes intent via keyword parsing, aggregates context from cached airport/SID/STAR/weather data and SimBrief flight plans, generates a structured briefing through a dual-path LLM bridge (API or CLI), and delivers it audibly via Piper TTS into the X-Plane com system.
 
 ## Architecture Overview
 
@@ -48,7 +48,7 @@
 | **llm_bridge** | `zoal_briefing/llm_bridge/cli_mode.hpp` | `src/llm_bridge/cli_mode.cpp` | Process spawn for Claude/Copilot/Codex CLI |
 | **llm_bridge** | `zoal_briefing/llm_bridge/fallback_chain.hpp` | `src/llm_bridge/fallback_chain.cpp` | API → CLI → cached template → voice prompt chain |
 | **simbrief_client** | `zoal_briefing/simbrief_client/client.hpp` | `src/simbrief_client/client.cpp` | Monitor SimBrief state changes, fetch flight plan data |
-| **audio_pipeline** | `zoal_briefing/audio_pipeline/wake_word_engine.hpp` | `src/audio_pipeline/wake_word_engine.cpp` | openwakeword detection for "Cookie Monster" |
+| **audio_pipeline** | `zoal_briefing/audio_pipeline/wake_word_engine.hpp` | `src/audio_pipeline/wake_word_engine.cpp` | openwakeword detection for "hey jarvis" |
 | **audio_pipeline** | `zoal_briefing/audio_pipeline/stt_transcriber.hpp` | `src/audio_pipeline/stt_transcriber.cpp` | whisper.cpp transcription (16-bit 16kHz PCM) |
 | **audio_pipeline** | `zoal_briefing/audio_pipeline/tts_speaker.hpp` | `src/audio_pipeline/tts_speaker.cpp` | Piper TTS → X-Plane com audio mixer |
 | **xplane** | `zoal_briefing/xplane/plugin_state.hpp` | `src/xplane/plugin_state.cpp` | Plugin-wide singleton state (current ICAO, active briefing) |

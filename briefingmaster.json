@@ -19,7 +19,7 @@
     "auto_refresh_minutes": 30
   },
   "audio": {
-    "wake_word": "cookie monster",
+    "wake_word": "hey jarvis",
     "stt_model": "base.en",
     "tts_engine": "piper",
     "fallback_voice": "en_US-celt_1024mb"
