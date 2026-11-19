@@ -47,10 +47,10 @@
 | **llm_bridge** | `zoal_briefing/llm_bridge/api_mode.hpp` | `src/llm_bridge/api_mode.cpp` | HTTP/REST to OpenAI/Anthropic/Ollama/LM Studio |
 | **llm_bridge** | `zoal_briefing/llm_bridge/cli_mode.hpp` | `src/llm_bridge/cli_mode.cpp` | Process spawn for Claude/Copilot/Codex CLI |
 | **llm_bridge** | `zoal_briefing/llm_bridge/fallback_chain.hpp` | `src/llm_bridge/fallback_chain.cpp` | API → CLI → cached template → voice prompt chain |
-| **simbrief_client** | `zoal_briefing/simbrief_client/client.hpp` | `src/simbrief_client/client.cpp` | Monitor SimBrief state changes, fetch flight plan data |
-| **audio_pipeline** | `zoal_briefing/audio_pipeline/wake_word_engine.hpp` | `src/audio_pipeline/wake_word_engine.cpp` | openwakeword detection for "hey jarvis" |
-| **audio_pipeline** | `zoal_briefing/audio_pipeline/stt_transcriber.hpp` | `src/audio_pipeline/stt_transcriber.cpp` | whisper.cpp transcription (16-bit 16kHz PCM) |
-| **audio_pipeline** | `zoal_briefing/audio_pipeline/tts_speaker.hpp` | `src/audio_pipeline/tts_speaker.cpp` | Piper TTS → X-Plane com audio mixer |
+| **simbrief** | `zoal_briefing/simbrief/client.hpp` | `src/simbrief/client.cpp` | Monitor SimBrief state changes, fetch flight plan data |
+| **audio** | `zoal_briefing/audio/wake/openwakeword.hpp` | `src/audio/wake/openwakeword.cpp` | openwakeword detection for "hey jarvis" |
+| **audio** | `zoal_briefing/audio/stt/whisper_stt.hpp` | `src/audio/stt/whisper_stt.cpp` | whisper.cpp transcription (16-bit 16kHz PCM) |
+| **audio** | `zoal_briefing/audio/tts/piper_tts.hpp` | `src/audio/tts/piper_tts.cpp` | Piper TTS → X-Plane com audio mixer |
 | **xplane** | `zoal_briefing/xplane/plugin_state.hpp` | `src/xplane/plugin_state.cpp` | Plugin-wide singleton state (current ICAO, active briefing) |
 
 ## Data Types
@@ -160,7 +160,7 @@ The `.github/workflows/ci.yml` includes a scheduled job (weekly, Monday 6am UTC)
 
 1. **Audit zoal-atc license** — This project uses MIT license (independent of GPL-v3 zoal-atc). For zoal-atc code reuse, extract only the audio pipeline patterns and create modular interfaces.
 2. **Implement real LLM bridge** — Currently placeholder HTTP/CLI stubs that need curl/httplib integration.
-3. **Wire up state machine to dataflow** — Connect the `xplane_plugin.cpp` flight loop to actual cache builder completion triggers and SimBrief load events.
+3. **Wire up state machine to dataflow** — Connect the `xplane/plugin.cpp` flight loop to actual cache builder completion triggers and SimBrief load events.
 4. **Add X-Plane com audio playback** — `play_audio_chunk()` needs `XPLMPlaySoundFile2` or buffer callback to output TTS through selected COM radio.
 5. **SimBrief integration** — Implement the SimBrief API client to fetch flight plan data and monitor load state changes.
 6. **Config file loading** — Read `briefingmaster.json` from the plugin directory on startup for LLM config.

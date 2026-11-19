@@ -1,6 +1,6 @@
 #include "check.hpp"
 
-#include "zoal_briefing/audio_pipeline/endpointer.hpp"
+#include "zoal_briefing/audio/input/endpointer.hpp"
 
 #include <cmath>
 #include <random>

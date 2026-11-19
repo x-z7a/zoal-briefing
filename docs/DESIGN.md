@@ -63,19 +63,32 @@ Non-goals for v1: replacing ATC (that is `zoal-atc`'s job), real-world operation
 
 ## 3. What exists today
 
+### 3.0 Source layout
+One folder per component, the same under `include/zoal_briefing/` and `src/`. The top-level folder name is the namespace (`simbrief/` → `zoal_briefing::simbrief`). Subfolders organize a component internally and share its namespace (`audio/stt/whisper_stt.hpp` → `zoal_briefing::audio::WhisperStt`). Headers that use the X-Plane SDK stay beside their sources in `src/` (included as `"gui/panel_window.hpp"`), so `include/` remains SDK-free.
+
+| Folder | Contents |
+|---|---|
+| `xplane/` | `plugin.cpp` (the `XPlugin*` entry points and the flight loop) and `plugin_state` (plugin-wide state). Wiring only. |
+| `gui/` | All UI: the SDK-free session, theme and view, plus the X-Plane ↔ ImGui bridge (`imgui_window`) and the panel window. |
+| `audio/` | The audio pipeline. At its root: `types` (clip + the stage interfaces), `config`, `voice_loop` (the conductor), `voice_pipeline` (assembly) and, src-only, `miniaudio` (set up once). One subfolder per stage, in pipeline order: `input/` (mic, sample ring, endpointer), `wake/` (`openwakeword`), `stt/` (`whisper_stt`), `tts/` (`piper_tts`), `output/` (`xplane_bus`, `speaker`). Engine implementations are named after their engine. |
+| `simbrief/`, `intent_parser/`, `llm_bridge/`, `cache_builder/`, `data_types/`, `state_machine/` | As named. |
+| `log.hpp`, `main_thread_queue.hpp` | Cross-cutting, at the top level. |
+
+Not yet aligned with the folder-equals-namespace rule: `intent_parser` (`intent`), `llm_bridge` (`llm`), `state_machine` (`state`), `cache_builder` and `data_types` (several namespaces each).
+
 ### 3.1 Working
 
 | Area | Files | Notes |
 |---|---|---|
 | Build system | `CMakeLists.txt`, `Makefile`, `cmake/*.cmake`, `scripts/ensure-*.sh` | SDK-free core library + tests. The plugin module builds when the SDK is present. FreeType and Inter are fetched by scripts. |
 | CI | `.github/workflows/ci.yml` | Tests on macOS, Ubuntu and Windows, and a plugin build on all three. The SDK-compat job is commented out. |
-| Plugin entry | `src/xplane/xplane_plugin.cpp` | Start/Stop/Enable/Disable, a per-frame flight loop, and native paths enabled. |
-| Panel window | `src/xplane/imgui_window.*`, `src/xplane/panel_window.cpp` | Dear ImGui 1.92 rendered through X-Plane panel graphics (not a browser window). Toggle command `zoal_briefing/toggle_panel`, a Plugins menu entry, dragging, resizing, and HiDPI scaling. |
+| Plugin entry | `src/xplane/plugin.cpp` | Start/Stop/Enable/Disable, a per-frame flight loop, and native paths enabled. |
+| Panel window | `src/gui/imgui_window.*`, `src/gui/panel_window.*` | Dear ImGui 1.92 rendered through X-Plane panel graphics (not a browser window). Toggle command `zoal_briefing/toggle_panel`, a Plugins menu entry, dragging, resizing, and HiDPI scaling. |
 | Panel view | `src/gui/panel_view.cpp`, `panel_session.*`, `panel_theme.*` | Home and Settings tabs, themes (graphite/daylight/night). Settings (wake word, LLM endpoint, model, theme) persist to `zoal-briefing.json` in X-Plane's `Output/preferences/`. A save merges into the file, so the `audio` block survives. The Home tab shows a Voice status line. |
 | METAR field parsing | `src/cache_builder/metar_file_parser.cpp` | Station, wind speed, visibility and weather codes, using regex and substring matching. Covered by a test. |
 | State machine | `state_machine/*` | Transition table; refused transitions logged; every change logged as `[state] FROM -> TO: reason`; callbacks run outside the lock. |
 | Logging + main-thread queue | `log.hpp`, `main_thread_queue.hpp` | The one logger: thread-safe, SDK-free, `[zoal-briefing] [component] message`. Its sink is stderr by default; the plugin installs one that sends lines from any thread to Log.txt (`XPLMDebugString`) through the queue the flight loop drains. |
-| Audio pipeline (echo mode) | `audio_pipeline/*`, `src/xplane/xplane_audio_output.*` | See §5.9. openWakeWord on ONNX Runtime, whisper.cpp (Metal), Piper via sherpa-onnx, miniaudio capture, `XPLMPlayPCMOnBus` playback. macOS only so far. |
+| Audio pipeline (echo mode) | `audio/**` | See §5.9. openWakeWord on ONNX Runtime, whisper.cpp (Metal), Piper via sherpa-onnx, miniaudio capture, `XPLMPlayPCMOnBus` playback. macOS only so far. |
 
 ### 3.2 Stubs and prototypes
 
@@ -86,7 +99,7 @@ Non-goals for v1: replacing ATC (that is `zoal-atc`'s job), real-world operation
 | LLM API mode | `llm_bridge/api_mode.cpp` | Has a libcurl POST in OpenAI/Ollama format and a response parser, but it is not linked to curl, the streaming method is declared but never defined, and the health check is wrong. |
 | LLM CLI mode | `llm_bridge/cli_mode.cpp` | Returns `nullopt`. |
 | LLM bridge / fallback | `llm_bridge/llm_bridge.cpp`, `fallback_chain.cpp` | The chain is set up, but it has a lifetime bug and the template fallback always "succeeds" (§4). `llm_bridge_router.cpp` is an empty placeholder. |
-| SimBrief client | `simbrief_client/*` | Does not compile and is not in CMake. It scans for `.pln` files, which is not how SimBrief delivers plans. |
+| SimBrief client | `simbrief/*` | Does not compile and is not in CMake. It scans for `.pln` files, which is not how SimBrief delivers plans. |
 | Airport / apt.dat | `data_types/airport.*`, `cache_builder/apt_dat_parser.*` | Two empty parsers. |
 | CIFP | `data_types/cifp.*`, `cache_builder/cifp_parser.*` | Two empty parsers. |
 | GRIB | `cache_builder/grib_parser.*`, `grib_file_parser.*` | One is empty. The other reads binary GRIB as text lines (a mock). |
@@ -99,7 +112,7 @@ Non-goals for v1: replacing ATC (that is `zoal-atc`'s job), real-world operation
 
 ### 3.3 Tests
 
-`make test` runs 8 SDK-free tests (it used to build them without running them): the original four (`metar_parser_tests`, `grib_parser_tests` (mock), `weather_summary_tests`, `intent_parser_tests`) plus `state_machine_tests`, `audio_config_tests`, `endpointer_tests` and `voice_loop_tests`. The voice-loop tests drive the whole echo cycle with fakes. New tests use `test/check.hpp`, because `assert` is compiled out in the Release builds `make test` uses. With the audio pipeline built and the models downloaded, `voice_selftest` (`make voice-check`) also runs the real engines on real models. Three old files are still unregistered or do not compile (`apt_dat_parser_test.cpp`, `llm_bridge_test.cpp`, `simbrief_client_test.cpp`), and tests are still split across `test/` and `tests/`.
+`make test` runs 8 SDK-free tests (it used to build them without running them): the original four (`metar_parser_tests`, `grib_parser_tests` (mock), `weather_summary_tests`, `intent_parser_tests`) plus `state_machine_tests`, `audio_config_tests`, `endpointer_tests` and `voice_loop_tests`. The voice-loop tests drive the whole echo cycle with fakes. New tests use `test/check.hpp`, because `assert` is compiled out in the Release builds `make test` uses. With the audio pipeline built and the models downloaded, `voice_selftest` (`make voice-check`) also runs the real engines on real models. Three old files are still unregistered or do not compile (`apt_dat_parser_test.cpp`, `llm_bridge_test.cpp`, `simbrief_test.cpp`), and tests are still split across `test/` and `tests/`.
 
 ---
 
@@ -209,15 +222,15 @@ IDLE ──wake word──▶ WAKE_DETECTED ──"Yes, captain." played──�
 
 | Piece | File | Notes |
 |---|---|---|
-| Config | `audio_config.*` | `wake_word` (default **"hey jarvis"**) and an `audio` block in `zoal-briefing.json`; every key has a default. |
-| Wake word | `wake_word_engine.*` | A C++ port of openWakeWord's streaming pipeline on ONNX Runtime: 80 ms chunks → melspectrogram → 76-frame embedding → 16-feature classifier. Looks for `openwakeword/<slug>.onnx` (`cookie_monster.onnx`); falls back to `hey_jarvis_v0.1.onnx` with a warning until that is trained ([wake-word-training.md](wake-word-training.md)). Costs about 3.4 ms per 80 ms chunk. |
-| End of speech | `endpointer.*` | Energy detector over a noise floor measured while idle, so a pilot who talks the moment recording starts is not mistaken for noise. Defaults: 800 ms of silence ends the request, 4 s with no speech gives up, 8 s maximum. |
-| STT | `stt_transcriber.*` | whisper.cpp `small.en` q5_1, Metal; about 0.14 s for a short request. |
-| TTS | `tts_speaker.*` | Piper `en_US-lessac-medium` via sherpa-onnx's C API. |
-| Mic / speakers | `miniaudio_devices.*` | miniaudio capture at 16 kHz mono into a lock-free ring; speakers only for the dev tool. |
+| Config | `config.*` | `wake_word` (default **"hey jarvis"**) and an `audio` block in `zoal-briefing.json`; every key has a default. |
+| Wake word | `wake/openwakeword.*` | A C++ port of openWakeWord's streaming pipeline on ONNX Runtime: 80 ms chunks → melspectrogram → 76-frame embedding → 16-feature classifier. Looks for `openwakeword/<slug>.onnx` (`cookie_monster.onnx`); falls back to `hey_jarvis_v0.1.onnx` with a warning until that is trained ([wake-word-training.md](wake-word-training.md)). Costs about 3.4 ms per 80 ms chunk. |
+| End of speech | `input/endpointer.*` | Energy detector over a noise floor measured while idle, so a pilot who talks the moment recording starts is not mistaken for noise. Defaults: 800 ms of silence ends the request, 4 s with no speech gives up, 8 s maximum. |
+| STT | `stt/whisper_stt.*` | whisper.cpp `small.en` q5_1, Metal; about 0.14 s for a short request. |
+| TTS | `tts/piper_tts.*` | Piper `en_US-lessac-medium` via sherpa-onnx's C API. |
+| Mic | `input/mic.*`, `input/sample_ring.hpp` | miniaudio capture at 16 kHz mono into a lock-free ring (`miniaudio.hpp` configures miniaudio once for the mic and the speaker). |
 | Conductor | `voice_loop.*` | One worker thread owns every engine. The mic is ignored while we speak, so the plugin never hears itself. Playback that never reports completion times out. |
 | Assembly | `voice_pipeline.*` | Loads models on a background thread at plugin enable; `status()` goes to the panel's "Voice" line. |
-| X-Plane output | `src/xplane/xplane_audio_output.*` | `XPLMPlayPCMOnBus` on the main thread; bus from `audio.output_bus` (default `ui`). |
+| Speech output | `output/xplane_bus.*`, `output/speaker.*` | `XPlaneBus`: `XPLMPlayPCMOnBus` on the main thread, bus from `audio.output_bus` (default `ui`). `Speaker`: the computer's speakers via miniaudio, for the dev tool. |
 
 Commands `zoal_briefing/listen` (skip the wake word) and `zoal_briefing/cancel` are also in the Plugins menu. The microphone is open only while the plugin is enabled.
 

@@ -1,6 +1,6 @@
 #include "check.hpp"
 
-#include "zoal_briefing/audio_pipeline/voice_loop.hpp"
+#include "zoal_briefing/audio/voice_loop.hpp"
 #include "zoal_briefing/log.hpp"
 
 #include <cmath>

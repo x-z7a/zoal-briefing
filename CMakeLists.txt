@@ -110,9 +110,9 @@ add_library(zoal_briefing_core STATIC
 
     # Audio pipeline: the dependency-free parts (the engines are in
     # zoal_briefing_audio below)
-    src/audio_pipeline/audio_config.cpp
-    src/audio_pipeline/endpointer.cpp
-    src/audio_pipeline/voice_loop.cpp
+    src/audio/config.cpp
+    src/audio/input/endpointer.cpp
+    src/audio/voice_loop.cpp
 
     # Panel view state & session (shared with plugin module)
     src/gui/panel_session.cpp
@@ -165,13 +165,17 @@ if(ZoalBriefing_WITH_AUDIO)
     add_subdirectory("${ZoalBriefing_WHISPER_SOURCE}" "${CMAKE_BINARY_DIR}/whisper" EXCLUDE_FROM_ALL)
 
     add_library(zoal_briefing_audio STATIC
-        src/audio_pipeline/wake_word_engine.cpp
-        src/audio_pipeline/stt_transcriber.cpp
-        src/audio_pipeline/tts_speaker.cpp
-        src/audio_pipeline/miniaudio_devices.cpp
-        src/audio_pipeline/voice_pipeline.cpp
+        src/audio/wake/openwakeword.cpp
+        src/audio/stt/whisper_stt.cpp
+        src/audio/tts/piper_tts.cpp
+        src/audio/input/mic.cpp
+        src/audio/miniaudio.cpp
+        src/audio/voice_pipeline.cpp
+        src/audio/output/speaker.cpp
     )
     set_target_properties(zoal_briefing_audio PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    # src/ for the private headers shared across folders (audio/miniaudio.hpp).
+    target_include_directories(zoal_briefing_audio PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_include_directories(zoal_briefing_audio SYSTEM PRIVATE
         "${ZoalBriefing_SHERPA_ONNX}/include"
         "${ZoalBriefing_SHERPA_ONNX}/include/onnxruntime"
@@ -247,12 +251,14 @@ if(ZoalBriefing_BUILD_PLUGIN AND _zb_sdk_present)
     add_library(zoal_briefing MODULE)
 
     target_sources(zoal_briefing PRIVATE
-        src/xplane/imgui_window.cpp
-        src/xplane/panel_window.cpp
-        src/xplane/xplane_plugin.cpp
-        src/xplane/xplane_audio_output.cpp
-        # Panel view (moved from core — must be in plugin so draw_panel symbol exports correctly)
+        src/xplane/plugin.cpp
+        # The UI's SDK side: the X-Plane <-> ImGui bridge and the panel window.
+        # panel_view draws with ImGui, which only the plugin links.
+        src/gui/imgui_window.cpp
+        src/gui/panel_window.cpp
         src/gui/panel_view.cpp
+        # Speech into X-Plane's sound system.
+        src/audio/output/xplane_bus.cpp
     )
 
     target_include_directories(zoal_briefing PRIVATE
@@ -260,6 +266,8 @@ if(ZoalBriefing_BUILD_PLUGIN AND _zb_sdk_present)
         ${ZoalBriefing_XPLANE_SDK}/XPLM
         ${ZoalBriefing_XPLANE_SDK}/CHeaders
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+        # SDK-side headers live beside their sources: "gui/panel_window.hpp".
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
 
     target_link_libraries(zoal_briefing PRIVATE zoal_briefing_core zoal_briefing_imgui)

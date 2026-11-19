@@ -5,15 +5,16 @@
 //   voice_check live <models_dir> [config] the real loop on mic + speakers
 //   voice_check say <models_dir> <text>    speak text on the speakers
 
-#include "zoal_briefing/audio_pipeline/audio_config.hpp"
-#include "zoal_briefing/audio_pipeline/miniaudio_devices.hpp"
-#include "zoal_briefing/audio_pipeline/stt_transcriber.hpp"
-#include "zoal_briefing/audio_pipeline/tts_speaker.hpp"
-#include "zoal_briefing/audio_pipeline/voice_loop.hpp"
-#include "zoal_briefing/audio_pipeline/voice_pipeline.hpp"
-#include "zoal_briefing/audio_pipeline/wake_word_engine.hpp"
+#include "zoal_briefing/audio/config.hpp"
+#include "zoal_briefing/audio/input/mic.hpp"
+#include "zoal_briefing/audio/stt/whisper_stt.hpp"
+#include "zoal_briefing/audio/tts/piper_tts.hpp"
+#include "zoal_briefing/audio/voice_loop.hpp"
+#include "zoal_briefing/audio/voice_pipeline.hpp"
+#include "zoal_briefing/audio/wake/openwakeword.hpp"
 #include "zoal_briefing/log.hpp"
 #include "zoal_briefing/state_machine/state_machine.hpp"
+#include "zoal_briefing/audio/output/speaker.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -49,7 +50,7 @@ std::vector<std::int16_t> to_16k_with_padding(const PcmClip &clip) {
 }
 
 // Feeds audio through the wake engine; returns the peak score.
-float peak_wake_score(WakeWordEngine &wake, const std::vector<std::int16_t> &pcm, bool &fired) {
+float peak_wake_score(OpenWakeWord &wake, const std::vector<std::int16_t> &pcm, bool &fired) {
   wake.reset();
   fired = false;
   for (std::size_t i = 0; i + kChunkSamples <= pcm.size(); i += kChunkSamples) {
@@ -68,7 +69,7 @@ int selftest(const std::string &models_dir) {
   AudioConfig config;
   std::string error;
 
-  TtsSpeaker tts(models_dir + "/" + config.piper_voice);
+  PiperTts tts(models_dir + "/" + config.piper_voice);
   const bool tts_ok = tts.load(error);
   check(tts_ok, "Piper voice loads" + (tts_ok ? "" : ": " + error));
   if (!tts_ok) return 1;
@@ -99,7 +100,7 @@ int selftest(const std::string &models_dir) {
     models.classifier = path;
     models.phrase = phrase_from_model_file(path);
     models.threshold = config.wake_threshold;
-    WakeWordEngine wake;
+    OpenWakeWord wake;
     const bool loaded = wake.load(models, error);
     check(loaded, "openWakeWord loads " + fs::path(path).filename().string() +
                       (loaded ? "" : ": " + error));
@@ -131,7 +132,7 @@ int selftest(const std::string &models_dir) {
   }
 
   // Speech to text.
-  SttTranscriber stt(models_dir + "/" + config.whisper_model);
+  WhisperStt stt(models_dir + "/" + config.whisper_model);
   const bool stt_ok = stt.load(error);
   check(stt_ok, "whisper loads" + (stt_ok ? "" : ": " + error));
   if (stt_ok) {
@@ -171,7 +172,7 @@ int selftest(const std::string &models_dir) {
     models.classifier = choice.path;
     models.phrase = choice.phrase;
     models.threshold = loop_config.wake_threshold;
-    WakeWordEngine wake;
+    OpenWakeWord wake;
     wake.load(models, error);
 
     state::StateMachine machine;
@@ -224,7 +225,7 @@ AudioConfig read_config(const std::string &path) {
 int live(const std::string &models_dir, const std::string &config_path) {
   std::signal(SIGINT, [](int) { g_quit = true; });
   state::StateMachine machine;
-  SpeakerOutput speaker;
+  Speaker speaker;
   VoicePipeline pipeline(speaker, machine);
   pipeline.start(read_config(config_path), models_dir);
 
@@ -247,14 +248,14 @@ int live(const std::string &models_dir, const std::string &config_path) {
 int say(const std::string &models_dir, const std::string &text) {
   AudioConfig config;
   std::string error;
-  TtsSpeaker tts(models_dir + "/" + config.piper_voice);
+  PiperTts tts(models_dir + "/" + config.piper_voice);
   if (!tts.load(error)) {
     std::fprintf(stderr, "%s\n", error.c_str());
     return 1;
   }
   auto clip = tts.synthesize(text);
   if (!clip) return 1;
-  SpeakerOutput speaker;
+  Speaker speaker;
   std::atomic<bool> done{false};
   speaker.play(*clip, [&] { done = true; });
   while (!done) std::this_thread::sleep_for(std::chrono::milliseconds(20));

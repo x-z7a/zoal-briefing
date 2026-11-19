@@ -1,7 +1,7 @@
 #include "check.hpp"
 
-#include "zoal_briefing/audio_pipeline/audio_config.hpp"
-#include "zoal_briefing/audio_pipeline/audio_types.hpp"
+#include "zoal_briefing/audio/config.hpp"
+#include "zoal_briefing/audio/types.hpp"
 
 #include <nlohmann/json.hpp>
 
