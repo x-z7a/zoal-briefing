@@ -26,6 +26,7 @@
 #include "imgui_freetype.h"
 #include "zoal_briefing/gui/panel_session.hpp"
 #include "zoal_briefing/gui/panel_view.hpp"
+#include "zoal_briefing/log.hpp"
 
 namespace zoal_briefing::xplane {
 
@@ -63,10 +64,6 @@ struct Panel {
 };
 
 std::unique_ptr<Panel> g_panel;
-
-void panel_log(const std::string &message) {
-  XPLMDebugString(("[zoal-briefing] " + message + "\n").c_str());
-}
 
 std::uint64_t steady_now() {
   return static_cast<std::uint64_t>(
@@ -149,21 +146,28 @@ int toggle_handler(XPLMCommandRef, XPLMCommandPhase phase, void *) {
 void install_menu() {
   XPLMMenuID plugins = XPLMFindPluginsMenu();
   if (!plugins) {
-    panel_log("no plugins menu; the panel is reachable by command only");
+    log::warn("panel", "no plugins menu; the panel is reachable by command only");
     return;
   }
   const int index = XPLMAppendMenuItem(plugins, "zoal-briefing", nullptr, 1);
   if (index < 0) {
-    panel_log("could not append the zoal-briefing menu");
+    log::warn("panel", "could not append the zoal-briefing menu");
     return;
   }
   g_panel->menu =
       XPLMCreateMenu("zoal-briefing", plugins, index, nullptr, nullptr);
   if (!g_panel->menu) {
-    panel_log("could not create the zoal-briefing menu");
+    log::warn("panel", "could not create the zoal-briefing menu");
     return;
   }
   XPLMAppendMenuItemWithCommand(g_panel->menu, "Toggle Panel", g_panel->command);
+  // The plugin creates these before the panel starts.
+  if (XPLMCommandRef listen = XPLMFindCommand("zoal_briefing/listen")) {
+    XPLMAppendMenuItemWithCommand(g_panel->menu, "Listen Now", listen);
+  }
+  if (XPLMCommandRef cancel = XPLMFindCommand("zoal_briefing/cancel")) {
+    XPLMAppendMenuItemWithCommand(g_panel->menu, "Cancel", cancel);
+  }
 }
 
 // The plugin's own folder: <plugins>/zoal-briefing/<platform>/zoal-briefing.xpl.
@@ -194,7 +198,7 @@ void load_fonts() {
   std::filesystem::path regular = inter / "Inter-Regular.ttf";
   std::filesystem::path semibold = inter / "Inter-SemiBold.ttf";
   if (!std::filesystem::exists(regular, ec)) {
-    panel_log("no Inter in " + inter.string() + "; using X-Plane's Roboto");
+    log::warn("panel", "no Inter in " + inter.string() + "; using X-Plane's Roboto");
     regular = roboto / "Roboto-Regular.ttf";
     semibold = roboto / "Roboto-Bold.ttf";
   }
@@ -206,7 +210,7 @@ void load_fonts() {
     body = io.Fonts->AddFontFromFileTTF(regular.string().c_str(), kFontSize);
   }
   if (!body) {
-    panel_log("could not load " + regular.string() + "; using ImGui's built-in font");
+    log::warn("panel", "could not load " + regular.string() + "; using ImGui's built-in font");
     io.Fonts->AddFontDefault();
   }
   if (std::filesystem::exists(semibold, ec)) {
@@ -231,7 +235,7 @@ void start_panel(const PanelConfig &config) {
   g_panel->window = std::make_unique<ImguiWindow>(0, kOpenHeight, kOpenWidth, 0,
                                                   build_panel, options);
   if (!g_panel->window->valid()) {
-    panel_log("X-Plane did not create the panel window (it needs X-Plane "
+    log::warn("panel", "X-Plane did not create the panel window (it needs X-Plane "
               "12.4.4 or newer)");
     g_panel.reset();
     return;
@@ -251,7 +255,7 @@ void start_panel(const PanelConfig &config) {
                                        "zoal-briefing: Toggle the briefing panel");
   XPLMRegisterCommandHandler(g_panel->command, toggle_handler, 1, nullptr);
   install_menu();
-  panel_log("ready; open it with Plugins > zoal-briefing > Toggle Panel or bind " +
+  log::info("panel", "ready; open it with Plugins > zoal-briefing > Toggle Panel or bind " +
             std::string(kPanelCommandName));
 }
 
@@ -268,6 +272,8 @@ void stop_panel() {
   g_panel->window.reset();
   g_panel.reset();
 }
+
+gui::PanelSession *panel_session() { return g_panel ? &g_panel->session : nullptr; }
 
 void tick_panel() {
   if (!g_panel || !g_panel->window) return;

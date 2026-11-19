@@ -290,6 +290,11 @@ void draw_home_tab(const Palette &p, PanelSession &session) {
   ImGui::TextUnformatted(airport.empty() ? "-" : airport.c_str());
   ImGui::Spacing();
 
+  ImGui::TextDisabled("Voice");
+  const std::string &voice = session.audio_status();
+  ImGui::TextUnformatted(voice.empty() ? "-" : voice.c_str());
+  ImGui::Spacing();
+
   ImGui::TextDisabled("Briefing");
   ImGui::PushStyleColor(ImGuiCol_Text, vec(p.text_feed));
   if (ImGui::BeginChild("##briefing", ImVec2(0.0f, 0.0f),

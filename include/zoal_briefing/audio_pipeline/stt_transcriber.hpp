@@ -1,30 +1,33 @@
 #ifndef ZOAL_BRIEFING_STT_TRANSCRIBER_HPP
 #define ZOAL_BRIEFING_STT_TRANSCRIBER_HPP
 
-#include <string>
-#include <vector>
-#include <optional>
+#include "zoal_briefing/audio_pipeline/audio_types.hpp"
+
 #include <mutex>
+#include <string>
+
+struct whisper_context;
 
 namespace zoal_briefing::audio {
 
-// Transcribes audio to text using whisper.cpp (local, offline-capable).
-class SttTranscriber {
+// Speech to text with whisper.cpp, on the pilot's machine (Metal on macOS).
+class SttTranscriber final : public Transcriber {
 public:
-    explicit SttTranscriber(const std::string& model_path);
-    ~SttTranscriber();
+  explicit SttTranscriber(std::string model_path);
+  ~SttTranscriber() override;
 
-    // Load the Whisper model. Returns false on failure.
-    bool load(std::string& error);
-    
-    // Transcribe a buffer of PCM audio (16-bit, 16kHz).
-    std::optional<std::string> transcribe(const std::vector<std::int16_t>& pcm16);
+  SttTranscriber(const SttTranscriber &) = delete;
+  SttTranscriber &operator=(const SttTranscriber &) = delete;
+
+  bool load(std::string &error);
+
+  // 16 kHz mono PCM. Trimmed text; empty when nothing was said.
+  std::optional<std::string> transcribe(const std::vector<std::int16_t> &pcm16k) override;
 
 private:
-    std::string model_path_;
-    void* whisper_context_ = nullptr;
-    bool load_failed_ = false;
-    std::mutex mutex_;
+  std::string model_path_;
+  whisper_context *ctx_ = nullptr;
+  std::mutex mutex_;
 };
 
 } // namespace zoal_briefing::audio

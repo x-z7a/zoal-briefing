@@ -1,5 +1,7 @@
 #include "zoal_briefing/cache_builder/cache_builder.hpp"
 
+#include "zoal_briefing/log.hpp"
+
 namespace zoal_briefing::cache {
 
 CacheBuilder::CacheBuilder(
@@ -12,34 +14,33 @@ CacheBuilder::CacheBuilder(
 }
 
 void CacheBuilder::log(const std::string& msg) const {
-    (void)msg;
-    // Stub - will be wired to XPLMDebugString or similar when plugin initialized.
+    zoal_briefing::log::info("cache", msg);
 }
 
 void CacheBuilder::start() {
     worker_ = std::thread([this] {
-        log("cache_builder: starting async parsing...");
+        log("starting async parsing...");
         
         // 1. Parse APT.DAT if available
         if (!apt_dat_path_.empty()) {
             // TODO: Wire up AptDatParser
-            log("cache_builder: APT.DAT placeholder loaded");
+            log("APT.DAT placeholder loaded");
         }
         
         // 2. Parse CIFP if available  
         if (!cifp_dir_.empty()) {
             // TODO: Wire up CifpParser
-            log("cache_builder: CIFP placeholder loaded");
+            log("CIFP placeholder loaded");
         }
         
         // 3. Parse GRIB if available
         if (!grib_dir_.empty()) {
             // TODO: Wire up GribParser  
-            log("cache_builder: GRIB placeholder loaded");
+            log("GRIB placeholder loaded");
         }
         
         ready_ = true;
-        log("cache_builder: startup cache build complete");
+        log("startup cache build complete");
     });
 }
 

@@ -56,6 +56,15 @@ public:
   void set_wake_word(const std::string &word);
   std::string wake_word() const;
 
+  // One line on the audio pipeline ("listening for \"hey jarvis\"").
+  void set_audio_status(const std::string &status) { audio_status_ = status; }
+  const std::string &audio_status() const { return audio_status_; }
+
+  // zoal-briefing.json in X-Plane's preferences; shared with the audio config.
+  static std::string settings_path();
+  // Where that file lives; the plugin passes X-Plane's preferences folder.
+  static void set_settings_dir(const std::string &dir);
+
   void set_llm_endpoint(const std::string &endpoint);
   std::string llm_endpoint() const;
 
@@ -78,7 +87,8 @@ private:
   std::string airport_;
   std::string briefing_text_;
   std::string theme_name_ = "graphite";
-  std::string wake_word_;
+  std::string wake_word_ = "cookie monster";
+  std::string audio_status_;
   std::string llm_endpoint_;
   std::string model_name_;
 };

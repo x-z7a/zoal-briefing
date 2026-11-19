@@ -27,6 +27,17 @@ INTER_WEIGHTS := Inter-Regular.ttf Inter-SemiBold.ttf Inter-Bold.ttf
 
 PLUGIN_XPL := $(PLUGIN_BUILD_DIR)/zoal-briefing.xpl
 
+# The audio pipeline (openWakeWord, whisper.cpp, Piper via sherpa-onnx,
+# miniaudio). On by default on macOS, where it is tested; AUDIO=1 elsewhere to
+# try it, AUDIO=0 to build the plugin without it.
+SHERPA_VERSION := $(shell awk '$$1 == "version" { print $$2 }' "$(ROOT_DIR)/scripts/sherpa-onnx-version.txt")
+WHISPER_VERSION := $(shell cut -d' ' -f1 "$(ROOT_DIR)/scripts/whisper-version.txt")
+MINIAUDIO_VERSION := $(shell cut -d' ' -f1 "$(ROOT_DIR)/scripts/miniaudio-version.txt")
+ZOAL_BRIEFING_WHISPER_SOURCE ?= $(ROOT_DIR)/.cache/whisper.cpp-$(WHISPER_VERSION)
+ZOAL_BRIEFING_MINIAUDIO ?= $(ROOT_DIR)/.cache/miniaudio-$(MINIAUDIO_VERSION)
+ZOAL_BRIEFING_MODELS ?= $(ROOT_DIR)/.cache/models
+AUDIO_BUILD_DIR ?= $(ROOT_DIR)/build-audio
+
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 
@@ -49,6 +60,30 @@ else
 	ARCH := x64
 endif
 
+ifeq ($(PLATFORM),macos)
+	AUDIO ?= 1
+	SHERPA_FLAVOUR := osx-arm64-static-lib
+else ifeq ($(PLATFORM),linux)
+	AUDIO ?= 0
+	SHERPA_FLAVOUR := linux-x64-shared-lib
+else
+	AUDIO ?= 0
+	SHERPA_FLAVOUR := win-x64-shared-MT-Release-lib
+endif
+ZOAL_BRIEFING_SHERPA_ONNX ?= $(ROOT_DIR)/.cache/sherpa-onnx-$(SHERPA_VERSION)-$(SHERPA_FLAVOUR)
+
+ifeq ($(AUDIO),1)
+AUDIO_DEPS := audio-deps
+AUDIO_CMAKE_FLAGS := -DZoalBriefing_WITH_AUDIO=ON \
+	-DZoalBriefing_WHISPER_SOURCE="$(ZOAL_BRIEFING_WHISPER_SOURCE)" \
+	-DZoalBriefing_SHERPA_ONNX="$(ZOAL_BRIEFING_SHERPA_ONNX)" \
+	-DZoalBriefing_MINIAUDIO="$(ZOAL_BRIEFING_MINIAUDIO)" \
+	-DZoalBriefing_MODELS_DIR="$(ZOAL_BRIEFING_MODELS)"
+else
+AUDIO_DEPS :=
+AUDIO_CMAKE_FLAGS := -DZoalBriefing_WITH_AUDIO=OFF
+endif
+
 # On Windows the default CMake generator is Visual Studio (multi-config), which
 # ignores -DCMAKE_BUILD_TYPE and places outputs in a <Config>/ subdirectory.
 # Force MinGW Makefiles (a single-config generator) so the plugin lands at
@@ -59,7 +94,7 @@ else
 CMAKE_GENERATOR :=
 endif
 
-.PHONY: help test plugin freetype fonts install install-plugin release clean
+.PHONY: help test plugin freetype fonts audio-deps models voice-check voice-live install install-plugin release clean
 
 .DEFAULT_GOAL := help
 
@@ -68,6 +103,9 @@ help:
 	@echo
 	@echo "  test            build and run the SDK-free C++ core tests"
 	@echo "  plugin          build the .xpl (fetches the X-Plane SDK from GitHub releases)"
+	@echo "  models          download the audio models into $(ZOAL_BRIEFING_MODELS)"
+	@echo "  voice-check     self-test the audio pipeline with the real models (no mic)"
+	@echo "  voice-live      run the wake word -> listen -> echo loop on mic + speakers"
 	@echo "  install         build and install into X-Plane ($(LOCAL_XPLANE_PLUGIN_DIR))"
 	@echo "  install-plugin  same as install"
 	@echo "  release         assemble the release tree in dist/zoal-briefing"
@@ -83,8 +121,10 @@ test:
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
 ifeq ($(OS),Windows_NT)
 	cmake --build "$(BUILD_DIR)" --config $(BUILD_TYPE)
+	ctest --test-dir "$(BUILD_DIR)" --output-on-failure -C $(BUILD_TYPE)
 else
 	cmake --build "$(BUILD_DIR)"
+	ctest --test-dir "$(BUILD_DIR)" --output-on-failure
 endif
 
 freetype:
@@ -93,13 +133,40 @@ freetype:
 fonts:
 	ZOAL_BRIEFING_INTER="$(ZOAL_BRIEFING_INTER)" "$(ROOT_DIR)/scripts/ensure-inter.sh"
 
+audio-deps:
+	ZOAL_BRIEFING_WHISPER_SOURCE="$(ZOAL_BRIEFING_WHISPER_SOURCE)" "$(ROOT_DIR)/scripts/ensure-whisper-src.sh"
+	ZOAL_BRIEFING_SHERPA_ONNX="$(ZOAL_BRIEFING_SHERPA_ONNX)" "$(ROOT_DIR)/scripts/ensure-sherpa-onnx.sh" $(SHERPA_FLAVOUR)
+	ZOAL_BRIEFING_MINIAUDIO="$(ZOAL_BRIEFING_MINIAUDIO)" "$(ROOT_DIR)/scripts/ensure-miniaudio.sh"
+
+models:
+	"$(ROOT_DIR)/scripts/ensure-models.sh" "$(ZOAL_BRIEFING_MODELS)"
+
+# The audio pipeline outside X-Plane: the dev tool and the audio tests.
+$(AUDIO_BUILD_DIR)/voice_check: audio-deps models
+	cmake -S . -B "$(AUDIO_BUILD_DIR)" $(CMAKE_GENERATOR) \
+		-DZoalBriefing_BUILD_TESTS=ON -DZoalBriefing_BUILD_PLUGIN=OFF \
+		-DZoalBriefing_WITH_AUDIO=ON \
+		-DZoalBriefing_WHISPER_SOURCE="$(ZOAL_BRIEFING_WHISPER_SOURCE)" \
+		-DZoalBriefing_SHERPA_ONNX="$(ZOAL_BRIEFING_SHERPA_ONNX)" \
+		-DZoalBriefing_MINIAUDIO="$(ZOAL_BRIEFING_MINIAUDIO)" \
+		-DZoalBriefing_MODELS_DIR="$(ZOAL_BRIEFING_MODELS)" \
+		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
+	cmake --build "$(AUDIO_BUILD_DIR)" --target voice_check
+
+voice-check: $(AUDIO_BUILD_DIR)/voice_check
+	"$(AUDIO_BUILD_DIR)/voice_check" selftest "$(ZOAL_BRIEFING_MODELS)"
+
+voice-live: $(AUDIO_BUILD_DIR)/voice_check
+	"$(AUDIO_BUILD_DIR)/voice_check" live "$(ZOAL_BRIEFING_MODELS)" $(CONFIG)
+
 # Build plugin (fetches X-Plane SDK from GitHub releases automatically)
-plugin: freetype
+plugin: freetype $(AUDIO_DEPS)
 	@echo ">>> Building zoal-briefing .xpl plugin..."
 	cmake -S . -B "$(PLUGIN_BUILD_DIR)" $(CMAKE_GENERATOR) \
 		-DZoalBriefing_BUILD_TESTS=OFF \
 		-DZoalBriefing_BUILD_PLUGIN=ON \
 		-DZoalBriefing_FREETYPE_SOURCE="$(ZOAL_BRIEFING_FREETYPE_SOURCE)" \
+		$(AUDIO_CMAKE_FLAGS) \
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
 ifeq ($(OS),Windows_NT)
 	cmake --build "$(PLUGIN_BUILD_DIR)" --config $(BUILD_TYPE)
@@ -115,7 +182,13 @@ endif
 
 install: install-plugin
 
-install-plugin: plugin fonts
+ifeq ($(AUDIO),1)
+INSTALL_MODELS := models
+else
+INSTALL_MODELS :=
+endif
+
+install-plugin: plugin fonts $(INSTALL_MODELS)
 	@plugins_dir="$$(dirname "$(LOCAL_XPLANE_PLUGIN_DIR)")"; \
 	if [ ! -d "$$plugins_dir" ]; then \
 		echo "no X-Plane plugins folder at $$plugins_dir" >&2; \
@@ -128,6 +201,15 @@ install-plugin: plugin fonts
 	mkdir -p "$(LOCAL_XPLANE_PLUGIN_DIR)/fonts" "$(LOCAL_XPLANE_PLUGIN_DIR)/licenses/inter"
 	for weight in $(INTER_WEIGHTS); do cp "$(ZOAL_BRIEFING_INTER)/$$weight" "$(LOCAL_XPLANE_PLUGIN_DIR)/fonts/"; done
 	cp "$(ZOAL_BRIEFING_INTER)/LICENSE.txt" "$(LOCAL_XPLANE_PLUGIN_DIR)/licenses/inter/LICENSE.txt"
+ifeq ($(AUDIO),1)
+	@# Models beside the plugin (<plugin>/models), and any shared runtime
+	@# libraries (Windows/Linux) beside the .xpl.
+	mkdir -p "$(LOCAL_XPLANE_PLUGIN_DIR)/models"
+	cp -R "$(ZOAL_BRIEFING_MODELS)/." "$(LOCAL_XPLANE_PLUGIN_DIR)/models/"
+	for lib in "$(PLUGIN_BUILD_DIR)"/*.dll "$(PLUGIN_BUILD_DIR)"/*.so; do \
+		[ -f "$$lib" ] && cp "$$lib" "$(LOCAL_XPLANE_PLUGIN_DIR)/$(PLUGIN_PLATFORM_DIR)/"; \
+	done; true
+endif
 	@echo "installed into $(LOCAL_XPLANE_PLUGIN_DIR)/$(PLUGIN_PLATFORM_DIR)"
 
 # Assemble release tree in dist/zoal-briefing (includes README).
@@ -146,4 +228,4 @@ release: plugin fonts
 # --- cleanup -----------------------------------------------------------------
 
 clean:
-	cmake -E rm -rf "$(BUILD_DIR)" "$(PLUGIN_BUILD_DIR)" "$(DIST_DIR)"
+	cmake -E rm -rf "$(BUILD_DIR)" "$(PLUGIN_BUILD_DIR)" "$(AUDIO_BUILD_DIR)" "$(DIST_DIR)"

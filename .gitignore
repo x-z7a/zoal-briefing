@@ -8,6 +8,7 @@ build-*/
 *.xpl
 *.dll
 build/
+build-audio/
 .cache/
 
 # CMake
@@ -22,10 +23,8 @@ cmake_install.cmake
 *.swp
 *~
 
-# Models (download separately)
-model/whisper/*.bin
-model/openwakeword/*.onnx
-model/piper/*.onnx
+# Models: downloaded into .cache/models by scripts/ensure-models.sh
+models/
 
 # Logs
 *.log

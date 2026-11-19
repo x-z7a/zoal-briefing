@@ -1,44 +1,62 @@
-#include "zoal_briefing/state_machine/state_machine.hpp"
-#include <cassert>
-#include <iostream>
+#include "check.hpp"
 
-using zoal_briefing::state::StateMachine;
+#include "zoal_briefing/log.hpp"
+#include "zoal_briefing/state_machine/state_machine.hpp"
+
+#include <string>
+#include <vector>
+
 using zoal_briefing::state::State;
+using zoal_briefing::state::StateMachine;
 
 int main() {
-    StateMachine sm;
-    
-    // Test default state.
-    assert(sm.current_state() == State::IDLE);
-    std::cout << "PASS: Default state is IDLE\n";
+  std::vector<std::string> lines;
+  zoal_briefing::log::set_sink([&](const std::string &line) { lines.push_back(line); });
 
-    // Test transition.
-    sm.transition_to(State::LISTENING);
-    assert(sm.current_state() == State::LISTENING);
-    std::cout << "PASS: Can transition to LISTENING\n";
+  StateMachine sm;
+  CHECK(sm.current() == State::IDLE);
 
-    // Test callbacks.
-    bool callback_called = false;
-    State from_state, to_state;
-    sm.on_state_change([&](State f, State t) {
-        from_state = f;
-        to_state = t;
-        callback_called = true;
-    });
+  // The echo-mode path.
+  CHECK(sm.transition_to(State::WAKE_DETECTED, "heard wake word"));
+  CHECK(sm.transition_to(State::LISTENING, "acknowledged"));
+  CHECK(sm.transition_to(State::STT_COMPLETE, "transcribed"));
+  CHECK(sm.transition_to(State::PLAYBACK, "echo"));
+  CHECK(sm.transition_to(State::IDLE, "done"));
 
-    sm.transition_to(State::STT_COMPLETE);
-    assert(callback_called);
-    assert(from_state == State::LISTENING);
-    assert(to_state == State::STT_COMPLETE);
-    std::cout << "PASS: Callback fires on transition\n";
+  // Every change is logged with its reason.
+  CHECK(lines.size() == 5);
+  CHECK(!lines.empty() &&
+        lines[0] == "[zoal-briefing] [state] IDLE -> WAKE_DETECTED: heard wake word");
 
-    // Test disabled callbacks.
-    sm.enable_callbacks(false);
-    callback_called = false;
-    sm.transition_to(State::IDLE);
-    assert(!callback_called);
-    std::cout << "PASS: Disabled callbacks prevent notification\n";
+  // Refused transitions leave the state alone and log a warning.
+  lines.clear();
+  CHECK(!sm.transition_to(State::PLAYBACK, "skip ahead"));
+  CHECK(sm.current() == State::IDLE);
+  CHECK(lines.size() == 1 && lines[0].find("WARN [state] refused IDLE -> PLAYBACK") != std::string::npos);
 
-    std::cout << "All state machine tests passed.\n";
-    return 0;
+  // Same state: a no-op, not logged.
+  lines.clear();
+  CHECK(sm.transition_to(State::IDLE));
+  CHECK(lines.empty());
+
+  // Manual trigger skips the wake word; reset works from anywhere.
+  CHECK(sm.transition_to(State::LISTENING, "listen command"));
+  sm.reset("cancelled");
+  CHECK(sm.current() == State::IDLE);
+
+  // The full briefing path is allowed for the later components.
+  CHECK(StateMachine::allowed(State::STT_COMPLETE, State::PARSING));
+  CHECK(StateMachine::allowed(State::PARSING, State::DATA_READY));
+  CHECK(StateMachine::allowed(State::BRIEFING_GENERATING, State::PLAYBACK));
+  CHECK(!StateMachine::allowed(State::WAKE_DETECTED, State::PLAYBACK));
+
+  // Callbacks run outside the lock, so they may transition again.
+  sm.on_transition([&](State, State to, const std::string &) {
+    if (to == State::WAKE_DETECTED) sm.transition_to(State::LISTENING, "from callback");
+  });
+  CHECK(sm.transition_to(State::WAKE_DETECTED, "wake"));
+  CHECK(sm.current() == State::LISTENING);
+
+  zoal_briefing::log::reset_sink();
+  return test_result("state_machine");
 }

@@ -12,9 +12,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(ZoalBriefing_BUILD_TESTS    "Build unit tests (SDK-free)"   ON)
 option(ZoalBriefing_BUILD_PLUGIN   "Build X-Plane .xpl plugin"     OFF)
+# The audio pipeline: openWakeWord (on ONNX Runtime), whisper.cpp, Piper (via
+# sherpa-onnx) and miniaudio. Off by default so the core tests need nothing;
+# `make plugin` turns it on where its dependencies are pinned (see scripts/).
+option(ZoalBriefing_WITH_AUDIO     "Build the audio pipeline"      OFF)
 
 set(ZoalBriefing_XPLANE_SDK "" CACHE PATH "Path to the X-Plane SDK root")
 set(ZoalBriefing_FREETYPE_SOURCE "" CACHE PATH "FreeType source tree (see scripts/ensure-freetype.sh)")
+set(ZoalBriefing_WHISPER_SOURCE "" CACHE PATH "whisper.cpp source tree (see scripts/ensure-whisper-src.sh)")
+set(ZoalBriefing_SHERPA_ONNX "" CACHE PATH "sherpa-onnx build + ONNX Runtime headers (see scripts/ensure-sherpa-onnx.sh)")
+set(ZoalBriefing_MINIAUDIO "" CACHE PATH "Directory holding miniaudio.h (see scripts/ensure-miniaudio.sh)")
+set(ZoalBriefing_MODELS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.cache/models" CACHE PATH "Models for the audio self-test (see scripts/ensure-models.sh)")
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/XPlaneSDK.cmake)
 
@@ -67,6 +75,8 @@ endif()
 
 # ── core library (SDK-free, builds on all platforms) ──────────────────────────
 add_library(zoal_briefing_core STATIC
+    src/log.cpp
+
     # Plugin glue (SDK-free parts)
     src/xplane/plugin_state.cpp
 
@@ -94,9 +104,15 @@ add_library(zoal_briefing_core STATIC
     src/cache_builder/taf_parser.cpp
     src/cache_builder/weather_summarizer.cpp
 
-    # Intent parsing & audio pipeline
+    # Intent parsing
     src/intent_parser/intent_parser.cpp
     src/intent_parser/keyword_router.cpp
+
+    # Audio pipeline: the dependency-free parts (the engines are in
+    # zoal_briefing_audio below)
+    src/audio_pipeline/audio_config.cpp
+    src/audio_pipeline/endpointer.cpp
+    src/audio_pipeline/voice_loop.cpp
 
     # Panel view state & session (shared with plugin module)
     src/gui/panel_session.cpp
@@ -113,6 +129,100 @@ else()
     target_compile_options(zoal_briefing_core PRIVATE
         -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion
     )
+endif()
+
+# ── audio pipeline (optional) ─────────────────────────────────────────────────
+if(ZoalBriefing_WITH_AUDIO)
+    foreach(_dep_check
+            "ZoalBriefing_WHISPER_SOURCE;include/whisper.h;scripts/ensure-whisper-src.sh"
+            "ZoalBriefing_SHERPA_ONNX;include/sherpa-onnx/c-api/c-api.h;scripts/ensure-sherpa-onnx.sh"
+            "ZoalBriefing_SHERPA_ONNX;include/onnxruntime/onnxruntime_c_api.h;scripts/ensure-sherpa-onnx.sh"
+            "ZoalBriefing_MINIAUDIO;miniaudio.h;scripts/ensure-miniaudio.sh")
+        list(GET _dep_check 0 _dep_var)
+        list(GET _dep_check 1 _dep_file)
+        list(GET _dep_check 2 _dep_script)
+        if(NOT EXISTS "${${_dep_var}}/${_dep_file}")
+            message(FATAL_ERROR "${_dep_file} not found under ${_dep_var}='${${_dep_var}}'. Run ${_dep_script}.")
+        endif()
+    endforeach()
+
+    # whisper.cpp, static and portable (the plugin runs on other machines):
+    # Metal with embedded shaders on macOS, plain CPU without OpenMP elsewhere.
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    set(WHISPER_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(WHISPER_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(WHISPER_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+    set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
+    if(APPLE)
+        set(GGML_METAL ON CACHE BOOL "" FORCE)
+        set(GGML_METAL_EMBED_LIBRARY ON CACHE BOOL "" FORCE)
+        set(GGML_BLAS ON CACHE BOOL "" FORCE)
+        set(GGML_BLAS_VENDOR "Apple" CACHE STRING "" FORCE)
+    else()
+        set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
+    endif()
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    add_subdirectory("${ZoalBriefing_WHISPER_SOURCE}" "${CMAKE_BINARY_DIR}/whisper" EXCLUDE_FROM_ALL)
+
+    add_library(zoal_briefing_audio STATIC
+        src/audio_pipeline/wake_word_engine.cpp
+        src/audio_pipeline/stt_transcriber.cpp
+        src/audio_pipeline/tts_speaker.cpp
+        src/audio_pipeline/miniaudio_devices.cpp
+        src/audio_pipeline/voice_pipeline.cpp
+    )
+    set_target_properties(zoal_briefing_audio PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    target_include_directories(zoal_briefing_audio SYSTEM PRIVATE
+        "${ZoalBriefing_SHERPA_ONNX}/include"
+        "${ZoalBriefing_SHERPA_ONNX}/include/onnxruntime"
+        "${ZoalBriefing_MINIAUDIO}"
+    )
+    target_link_libraries(zoal_briefing_audio PUBLIC zoal_briefing_core PRIVATE whisper)
+    if(NOT MSVC)
+        target_compile_options(zoal_briefing_audio PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+
+    # sherpa-onnx carries ONNX Runtime; openWakeWord runs on that same copy.
+    if(APPLE)
+        # Static, in link order: the C API over the core, the phonemizer and
+        # its data, and ONNX Runtime underneath everything.
+        foreach(_lib
+                sherpa-onnx-c-api sherpa-onnx-core sherpa-onnx-fstfar sherpa-onnx-fst
+                sherpa-onnx-kaldifst-core kaldi-decoder-core kaldi-native-fbank-core
+                piper_phonemize espeak-ng ucd onnxruntime ssentencepiece_core kissfft-float)
+            target_link_libraries(zoal_briefing_audio PUBLIC "${ZoalBriefing_SHERPA_ONNX}/lib/lib${_lib}.a")
+        endforeach()
+        target_link_libraries(zoal_briefing_audio PUBLIC
+            "-framework Foundation" "-framework CoreML"
+            "-framework CoreAudio" "-framework AudioToolbox" "-framework CoreFoundation")
+        set(ZoalBriefing_AUDIO_RUNTIME "")
+    elseif(WIN32)
+        # Shared MSVC builds with a C ABI; the DLLs ship beside the .xpl.
+        target_link_libraries(zoal_briefing_audio PUBLIC
+            "${ZoalBriefing_SHERPA_ONNX}/lib/sherpa-onnx-c-api.lib"
+            "${ZoalBriefing_SHERPA_ONNX}/lib/onnxruntime.lib" ole32 winmm)
+        set(ZoalBriefing_AUDIO_RUNTIME
+            "${ZoalBriefing_SHERPA_ONNX}/lib/sherpa-onnx-c-api.dll"
+            "${ZoalBriefing_SHERPA_ONNX}/lib/onnxruntime.dll"
+            "${ZoalBriefing_SHERPA_ONNX}/lib/onnxruntime_providers_shared.dll")
+    else()
+        target_link_libraries(zoal_briefing_audio PUBLIC
+            "${ZoalBriefing_SHERPA_ONNX}/lib/libsherpa-onnx-c-api.so"
+            "${ZoalBriefing_SHERPA_ONNX}/lib/libonnxruntime.so" dl pthread m)
+        set(ZoalBriefing_AUDIO_RUNTIME
+            "${ZoalBriefing_SHERPA_ONNX}/lib/libsherpa-onnx-c-api.so"
+            "${ZoalBriefing_SHERPA_ONNX}/lib/libonnxruntime.so")
+    endif()
+
+    # Dev tool: self-test without a microphone, or the live loop on mic + speakers.
+    add_executable(voice_check tools/voice_check.cpp)
+    target_link_libraries(voice_check PRIVATE zoal_briefing_audio)
+    foreach(_runtime IN LISTS ZoalBriefing_AUDIO_RUNTIME)
+        add_custom_command(TARGET voice_check POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_runtime}" "$<TARGET_FILE_DIR:voice_check>")
+    endforeach()
+
+    message(STATUS "Audio pipeline enabled (whisper: ${ZoalBriefing_WHISPER_SOURCE})")
 endif()
 
 # ── X-Plane plugin module (only when SDK present) ────────────────────────────
@@ -140,6 +250,7 @@ if(ZoalBriefing_BUILD_PLUGIN AND _zb_sdk_present)
         src/xplane/imgui_window.cpp
         src/xplane/panel_window.cpp
         src/xplane/xplane_plugin.cpp
+        src/xplane/xplane_audio_output.cpp
         # Panel view (moved from core — must be in plugin so draw_panel symbol exports correctly)
         src/gui/panel_view.cpp
     )
@@ -152,10 +263,16 @@ if(ZoalBriefing_BUILD_PLUGIN AND _zb_sdk_present)
     )
 
     target_link_libraries(zoal_briefing PRIVATE zoal_briefing_core zoal_briefing_imgui)
+    if(ZoalBriefing_WITH_AUDIO)
+        target_link_libraries(zoal_briefing PRIVATE zoal_briefing_audio)
+        target_compile_definitions(zoal_briefing PRIVATE ZOAL_BRIEFING_HAS_AUDIO=1)
+        foreach(_runtime IN LISTS ZoalBriefing_AUDIO_RUNTIME)
+            add_custom_command(TARGET zoal_briefing POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_runtime}" "$<TARGET_FILE_DIR:zoal_briefing>")
+        endforeach()
+    endif()
 
     # Enable all XPLM API features (matches zoal-atc pattern)
-    # xplane_logger.h writes to X-Plane's Log.txt in the plugin (stderr elsewhere).
-    target_compile_definitions(zoal_briefing PRIVATE ZOAL_BRIEFING_USE_XPLANE_SDK=1)
 
     target_compile_definitions(zoal_briefing PRIVATE
         XPLM200=1 XPLM210=1 XPLM300=1 XPLM301=1
@@ -211,6 +328,19 @@ if(ZoalBriefing_BUILD_PLUGIN AND _zb_sdk_present)
         target_link_libraries(zoal_briefing PRIVATE "-lX11" pthread dl m)
     endif()
 
+    # Export only the five plugin entry points. The .xpl carries its own ONNX
+    # Runtime, whisper and sherpa-onnx; other plugins (zoal-atc) carry theirs,
+    # and none of them may see another's.
+    set(_zb_entry_points XPluginStart XPluginStop XPluginEnable XPluginDisable XPluginReceiveMessage)
+    if(APPLE)
+        foreach(_sym IN LISTS _zb_entry_points)
+            target_link_options(zoal_briefing PRIVATE "LINKER:-exported_symbol,_${_sym}")
+        endforeach()
+    elseif(UNIX)
+        target_link_options(zoal_briefing PRIVATE
+            "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/cmake/plugin_exports.map")
+    endif()
+
     # The .xpl name uses a hyphen (zoal-briefing.xpl), matching the zoal-* convention.
     set_target_properties(zoal_briefing PROPERTIES
         OUTPUT_NAME "zoal-briefing"
@@ -246,6 +376,16 @@ if(ZoalBriefing_BUILD_TESTS)
     zb_add_test(grib_parser_tests test/grib_file_parser_test.cpp)
     zb_add_test(weather_summary_tests tests/weather_summary_test.cpp)
     zb_add_test(intent_parser_tests test/intent_parser_test.cpp)
+    zb_add_test(state_machine_tests test/state_machine_test.cpp)
+    zb_add_test(audio_config_tests test/audio_config_test.cpp)
+    zb_add_test(endpointer_tests test/endpointer_test.cpp)
+    zb_add_test(voice_loop_tests test/voice_loop_test.cpp)
+
+    # The real engines against the real models: only with the audio pipeline
+    # built and the models downloaded (scripts/ensure-models.sh).
+    if(ZoalBriefing_WITH_AUDIO AND EXISTS "${ZoalBriefing_MODELS_DIR}/openwakeword/melspectrogram.onnx")
+        add_test(NAME voice_selftest COMMAND voice_check selftest "${ZoalBriefing_MODELS_DIR}")
+    endif()
 
     message(STATUS "Unit tests enabled")
 endif()

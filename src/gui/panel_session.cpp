@@ -4,7 +4,7 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <cstdio>
-#include <sys/stat.h>
+#include <filesystem>
 
 using json = nlohmann::json;
 
@@ -87,32 +87,40 @@ void PanelSession::set_reachable(bool reachable) {
   connected_ = reachable;
 }
 
+static std::string &settings_dir_override() {
+  static std::string dir;
+  return dir;
+}
+
+void PanelSession::set_settings_dir(const std::string &dir) { settings_dir_override() = dir; }
+
+// The plugin sets X-Plane's own Output/preferences folder at start; these are
+// fallbacks for the SDK-free builds.
 static std::string get_settings_dir() {
-#ifdef APL
-  // macOS: ~/Library/Application Support/X-Plane/Preferences/
-  const char *home = getenv("HOME");
-  if (home) return std::string(home) + "/Library/Application Support/X-Plane/Preferences";
+  if (!settings_dir_override().empty()) return settings_dir_override();
+#if defined(__APPLE__) || defined(__linux__)
+  if (const char *home = getenv("HOME")) return std::string(home) + "/.config/zoal-briefing";
+#elif defined(_WIN32)
+  if (const char *appdata = getenv("APPDATA")) return std::string(appdata) + "\\zoal-briefing";
 #endif
-#ifdef IBM  
-  // Windows: %APPDATA%\X-Plane\Settings
-  const char *appdata = getenv("APPDATA");
-  if (appdata) return std::string(appdata) + "\\X-Plane\\Settings";
-#endif
-  // Default fallback: current directory
   return ".";
 }
 
+std::string PanelSession::settings_path() { return get_settings_dir() + "/zoal-briefing.json"; }
+
 void PanelSession::load_settings() {
-  auto dir = get_settings_dir();
-  std::string path = dir + "/zoal-briefing.json";
-  
+  std::string path = settings_path();
+
   std::ifstream file(path);
   if (file.is_open()) {
     try {
       json j;
       file >> j;
       
-      if (j.contains("wake_word")) wake_word_ = j["wake_word"].get<std::string>();
+      if (j.contains("wake_word") && j["wake_word"].is_string() &&
+          !j["wake_word"].get<std::string>().empty()) {
+        wake_word_ = j["wake_word"].get<std::string>();
+      }
       if (j.contains("llm_endpoint")) llm_endpoint_ = j["llm_endpoint"].get<std::string>();
       if (j.contains("model_name")) model_name_ = j["model_name"].get<std::string>();
       if (j.contains("theme")) theme_name_ = j["theme"].get<std::string>();
@@ -129,11 +137,21 @@ void PanelSession::load_settings() {
 
 void PanelSession::save_settings() {
   auto dir = get_settings_dir();
-  std::string path = dir + "/zoal-briefing.json";
-  
-  mkdir(dir.c_str(), 0755);
-  
-  json j;
+  std::string path = settings_path();
+
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+
+  // Merge into what is there: the file also holds settings the panel does not
+  // edit (the "audio" block), which a fresh object would erase.
+  json j = json::object();
+  {
+    std::ifstream in(path);
+    if (in.is_open()) {
+      json existing = json::parse(in, nullptr, false);
+      if (existing.is_object()) j = std::move(existing);
+    }
+  }
   j["wake_word"] = wake_word_;
   j["llm_endpoint"] = llm_endpoint_;
   j["model_name"] = model_name_;
